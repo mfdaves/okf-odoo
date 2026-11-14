@@ -89,9 +89,16 @@ for (const version of VERSIONS) {
       assert.equal(strip(later.get(file)), strip(content), file);
     }
     const team = files.get("models/crm.team.md");
-    const note = /Field groups are not available on Odoo 19/;
-    if (version === "19") assert.match(team, note);
-    else assert.doesNotMatch(team, note);
+    const note = /Field groups are not available on Odoo/;
+    if (version === "20") assert.doesNotMatch(team, note);
+    else assert.match(team, new RegExp(`Field groups are not available on Odoo ${version}:`));
+    const kind =
+      version === "18"
+        ? /Kind: model or abstract model \(Odoo 18 does not record which\)/
+        : /Kind: model\n/;
+    assert.match(team, kind);
+    const manager = files.get("groups/sales_team.group_sale_manager.md");
+    assert.match(manager, version === "18" ? /- Application: Sales/ : /- Privilege: Sales/);
     assert.deepEqual(frontmatter(files.get("index.md")), { okf_version: "0.2" });
     for (const [file, content] of files) {
       if (file === "index.md") continue;

@@ -22,7 +22,12 @@ const {
 
 const API_KEY = "mock-smoke-api-key";
 
-function projectYaml(url) {
+// Odoo 18 is served over JSON-RPC, as a project configures it; 19 and 20
+// over JSON-2.
+const JSONRPC = { database: "okf_live", login: "okf-reader", apiKey: API_KEY, uid: 5 };
+
+function projectYaml(url, version) {
+  const protocol = version === "18" ? ["      api: jsonrpc", `      login: ${JSONRPC.login}`] : [];
   return [
     "project: Odoo producer smoke",
     "bundles:",
@@ -37,6 +42,7 @@ function projectYaml(url) {
     "    bundle: erp",
     "    config:",
     `      url: ${url}`,
+    ...protocol,
     "      database: okf_live",
     "      apiKeyEnv: ODOO_API_KEY",
     "      source: erp",
@@ -49,15 +55,19 @@ function projectYaml(url) {
 
 async function smokeVersion(version, mcp) {
   const serve = fixtureHandler(loadFixture(version));
-  const server = await startFakeOdoo((request) =>
-    request.headers.authorization === `bearer ${API_KEY}` ? serve(request) : { status: 401 },
+  const server = await startFakeOdoo(
+    (request) =>
+      request.url === "/jsonrpc" || request.headers.authorization === `bearer ${API_KEY}`
+        ? serve(request)
+        : { status: 401 },
+    { jsonrpc: JSONRPC },
   );
   const root = fs.mkdtempSync(path.join(os.tmpdir(), `okf-odoo-smoke-${version}-`));
   try {
     const bundleRoot = path.join(root, "okf", "erp");
     fs.mkdirSync(bundleRoot, { recursive: true });
     const projectPath = path.join(root, "okf.project.yaml");
-    fs.writeFileSync(projectPath, projectYaml(server.url), "utf8");
+    fs.writeFileSync(projectPath, projectYaml(server.url, version), "utf8");
     const project = mcp.loadProjectConfig(projectPath);
     assert.deepEqual(project.errors, []);
     const service = (now) =>
@@ -96,10 +106,15 @@ async function smokeVersion(version, mcp) {
       },
     );
     assert.equal(validation.status, 0, validation.stdout || validation.stderr);
-    assert.equal(
-      server.requests.every((request) => request.headers["x-odoo-database"] === "okf_live"),
-      true,
-    );
+    const expectedPath = version === "18" ? /^\/jsonrpc$/ : /^\/json\/2\//;
+    assert.ok(server.requests.every((request) => expectedPath.test(request.url)));
+    if (version === "18") {
+      assert.ok(server.requests.every((request) => request.args?.[0] === "okf_live"));
+    } else {
+      assert.ok(
+        server.requests.every((request) => request.headers["x-odoo-database"] === "okf_live"),
+      );
+    }
     return { odoo: version, first: first.counts, second: second.counts, summary: first.summary };
   } finally {
     await server.close();

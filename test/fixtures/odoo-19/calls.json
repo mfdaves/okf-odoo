@@ -2,7 +2,6 @@
   "odoo": "19",
   "options": {"sections":["modules","models","access","groups","menus","crons","reports","serverActions"],"modules":{"include":["sales_team","utm"],"exclude":[]},"otherModules":"summary","lang":"en_US"},
   "shapes": {
-    "ir.access": null,
     "ir.actions.act_window": {"name":"char","res_model":"char"},
     "ir.actions.report": {"name":"char","model":"char","report_type":"selection","report_name":"char","group_ids":"many2many"},
     "ir.actions.server": {"name":"char","model_id":"many2one","state":"selection","binding_model_id":"many2one","group_ids":"many2many"},
@@ -1857,6 +1856,13 @@
         {"id":1349,"module_id":[642,"Tours"],"name":"web"},
         {"id":1350,"module_id":[643,"Unsplash Image Library"],"name":"base_setup"},
         {"id":1351,"module_id":[643,"Unsplash Image Library"],"name":"html_editor"}
+      ]
+    },
+    {
+      "model": "ir.module.module",
+      "params": {"domain":[["name","=","base"]],"fields":["name","shortdesc","summary","latest_version","installed_version","category_id","application","auto_install","license"],"context":{"lang":"en_US"}},
+      "rows": [
+        {"id":36,"name":"base","shortdesc":"Base","summary":"","latest_version":"19.0.1.3","installed_version":"19.0.1.3","category_id":[4,"Technical"],"application":false,"auto_install":true,"license":"LGPL-3"}
       ]
     },
     {

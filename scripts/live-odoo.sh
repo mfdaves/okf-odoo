@@ -1,14 +1,16 @@
 #!/usr/bin/env bash
 # Start or stop the disposable Odoo the live gate reads.
 #
-#   scripts/live-odoo.sh up 19|20   initialise okf_live with base and sale,
+#   scripts/live-odoo.sh up 18|19|20
+#                                   initialise okf_live with base and sale,
 #                                   create the API keys, start the server and
 #                                   print KEY=value lines on stdout
 #   scripts/live-odoo.sh down       remove the containers and volumes
 #
 # Progress goes to stderr, so `scripts/live-odoo.sh up 19 >> "$GITHUB_ENV"`
-# exports the keys. The compose project is okf-odoo-live; Odoo 19 listens on
-# 127.0.0.1:18069 and Odoo 20 on 127.0.0.1:18070.
+# exports the keys. The compose project is okf-odoo-live; Odoo 18 listens on
+# 127.0.0.1:18068, Odoo 19 on 18069 and Odoo 20 on 18070. Odoo 18 has no
+# JSON-2 API, so its gate uses JSON-RPC with the users' logins.
 set -euo pipefail
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,9 +25,10 @@ case "${1:-}" in
   up)
     version="${2:-}"
     case "${version}" in
+      18) port=18068 ;;
       19) port=18069 ;;
       20) port=18070 ;;
-      *) echo "usage: $0 up 19|20" >&2; exit 2 ;;
+      *) echo "usage: $0 up 18|19|20" >&2; exit 2 ;;
     esac
     export OKF_ODOO_IMAGE="odoo:${version}.0"
     export OKF_ODOO_PORT="${port}"
@@ -72,13 +75,16 @@ PY
     echo "OKF_ODOO_URL=http://127.0.0.1:${port}"
     echo "OKF_ODOO_DATABASE=okf_live"
     echo "OKF_ODOO_VERSION=${version}"
+    if [[ "${version}" == 18 ]]; then echo "OKF_ODOO_API=jsonrpc"; else echo "OKF_ODOO_API=json2"; fi
+    echo "OKF_ODOO_LOGIN=okf-reader"
+    echo "OKF_ODOO_LIMITED_LOGIN=okf-access-manager"
     printf '%s\n' "${keys}" | grep -E '^OKF_ODOO_(LIMITED_)?API_KEY=[0-9A-Za-z_]+$'
     ;;
   down)
     compose down -v >&2
     ;;
   *)
-    echo "usage: $0 up 19|20 | down" >&2
+    echo "usage: $0 up 18|19|20 | down" >&2
     exit 2
     ;;
 esac

@@ -1,4 +1,5 @@
 sections: ["modules","models","access","groups","menus","crons","reports","serverActions"]
+odooVersion: "20"
 accessModel: "ir.access"
 fieldGroups: true
 modules:

@@ -8,8 +8,8 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { FIELDS, readCatalog } = require("../src/catalog");
-const { OdooError, createOdooClient } = require("../src/odoo");
+const { fieldsFor, readCatalog } = require("../src/catalog");
+const { liveClient } = require("./support/live");
 const { FIXTURE_OPTIONS, callKey, loadFixture } = require("./support/replay-client");
 
 // Record ids differ between databases, so requests are compared with every
@@ -28,13 +28,7 @@ const skip = LIVE
   ? false
   : "set OKF_ODOO_LIVE_TEST=1 and the variables scripts/live-odoo.sh prints";
 
-function client() {
-  return createOdooClient({
-    url: process.env.OKF_ODOO_URL,
-    database: process.env.OKF_ODOO_DATABASE,
-    apiKey: process.env.OKF_ODOO_API_KEY,
-  });
-}
+const client = () => liveClient();
 
 // What a reader can branch on: null carries no information.
 function shapeOf(value) {
@@ -55,29 +49,18 @@ function rowShapes(rows) {
 }
 
 test("every allowlisted field exists with the type the fixture recorded", { skip }, async () => {
-  const fixture = loadFixture(process.env.OKF_ODOO_VERSION);
+  const version = process.env.OKF_ODOO_VERSION;
+  const fixture = loadFixture(version);
+  const fields = fieldsFor(version);
   const live = client();
   const failures = [];
-  for (const model of Object.keys(FIELDS).sort()) {
-    let described = null;
-    try {
-      described = await live.fieldsGet(model, ["type"]);
-    } catch (error) {
-      if (!(error instanceof OdooError) || error.code !== "model_not_found") throw error;
-    }
-    const recorded = fixture.shapes[model];
-    if (!described || !recorded) {
-      if (Boolean(described) !== Boolean(recorded)) {
-        failures.push(
-          `${model}: ${described ? "exists live but not in the fixture" : "missing live"}`,
-        );
-      }
-      continue;
-    }
-    for (const field of FIELDS[model]) {
+  assert.deepEqual(Object.keys(fixture.shapes).sort(), Object.keys(fields).sort());
+  for (const model of Object.keys(fields).sort()) {
+    const described = await live.fieldsGet(model, ["type"]);
+    for (const field of fields[model]) {
       const type = described[field] ? described[field].type : null;
-      if (type !== recorded[field]) {
-        failures.push(`${model}.${field}: live ${type}, fixture ${recorded[field]}`);
+      if (type !== fixture.shapes[model][field]) {
+        failures.push(`${model}.${field}: live ${type}, fixture ${fixture.shapes[model][field]}`);
       }
     }
   }

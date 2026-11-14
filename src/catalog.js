@@ -1,8 +1,9 @@
 "use strict";
 
 // Reads the technical catalog of an Odoo database into one normalised shape
-// for Odoo 19 and 20. Every value comes from a field named in FIELDS; nothing
-// else a response carries reaches the catalog.
+// for Odoo 18, 19 and 20. Every value comes from a field named in the
+// allowlist of the server's version; nothing else a response carries reaches
+// the catalog.
 
 const { OdooError } = require("./odoo");
 
@@ -20,8 +21,8 @@ const DEFAULT_SECTIONS = Object.freeze(SECTIONS.filter((section) => section !== 
 // These are rendered on model concepts, so they need the models section.
 const MODEL_SECTIONS = Object.freeze(["access", "crons", "reports", "serverActions"]);
 
-// The allowlist: the only fields ever requested, per Odoo model.
-const FIELDS = Object.freeze({
+// The allowlist: the only fields ever requested, per Odoo model, as of Odoo 19.
+const BASE_FIELDS = Object.freeze({
   "ir.module.module": [
     "name",
     "shortdesc",
@@ -84,6 +85,57 @@ const FIELDS = Object.freeze({
   "ir.actions.report": ["name", "model", "report_type", "report_name", "group_ids"],
   "ir.actions.server": ["name", "model_id", "state", "binding_model_id", "group_ids"],
 });
+
+function withoutModels(fields, ...models) {
+  return Object.fromEntries(Object.entries(fields).filter(([model]) => !models.includes(model)));
+}
+
+function renamed(list, from, to) {
+  return list.map((field) => (field === from ? to : field)).filter(Boolean);
+}
+
+// What differs between the supported versions, measured on live servers.
+// Odoo 18 has no ir.model.abstract, groups by application category, and
+// groups_id where 19 has group_ids; Odoo 20 replaces ir.model.access and
+// ir.rule with ir.access. Odoo 18 and 19 leave ir.model.fields.groups empty
+// for fields defined in code, so their field groups say nothing.
+const VERSIONS = Object.freeze({
+  18: Object.freeze({
+    accessModel: "ir.model.access",
+    fieldGroups: false,
+    groupCategory: "category_id",
+    groupsField: "groups_id",
+    fields: Object.freeze({
+      ...withoutModels(BASE_FIELDS, "ir.access"),
+      "ir.model": renamed(BASE_FIELDS["ir.model"], "abstract", null),
+      "res.groups": renamed(BASE_FIELDS["res.groups"], "privilege_id", "category_id"),
+      "ir.ui.menu": renamed(BASE_FIELDS["ir.ui.menu"], "group_ids", "groups_id"),
+      "ir.actions.report": renamed(BASE_FIELDS["ir.actions.report"], "group_ids", "groups_id"),
+      "ir.actions.server": renamed(BASE_FIELDS["ir.actions.server"], "group_ids", "groups_id"),
+    }),
+  }),
+  19: Object.freeze({
+    accessModel: "ir.model.access",
+    fieldGroups: false,
+    groupCategory: "privilege_id",
+    groupsField: "group_ids",
+    fields: Object.freeze(withoutModels(BASE_FIELDS, "ir.access")),
+  }),
+  20: Object.freeze({
+    accessModel: "ir.access",
+    fieldGroups: true,
+    groupCategory: "privilege_id",
+    groupsField: "group_ids",
+    fields: Object.freeze(withoutModels(BASE_FIELDS, "ir.model.access", "ir.rule")),
+  }),
+});
+const SUPPORTED_VERSIONS = Object.freeze(Object.keys(VERSIONS));
+
+function fieldsFor(version) {
+  const shape = VERSIONS[version];
+  if (!shape) throw new TypeError(`Unsupported Odoo version: ${version}.`);
+  return shape.fields;
+}
 
 class CatalogError extends Error {
   constructor(code, section, cause) {
@@ -187,10 +239,11 @@ async function readCatalog(client, options = {}) {
   const orphan = MODEL_SECTIONS.find((section) => has(section) && !has("models"));
   if (orphan) throw new TypeError(`The ${orphan} section requires the models section.`);
   const context = { lang: config.lang };
+  let shape = null;
   const read = (model, domain, extra = {}) =>
     client.searchRead(model, {
       domain,
-      fields: FIELDS[model],
+      fields: (shape ? shape.fields : BASE_FIELDS)[model],
       context: { ...context, ...extra },
     });
   const included = config.include ? patternMatcher(config.include) : () => true;
@@ -237,7 +290,7 @@ async function readCatalog(client, options = {}) {
           xmlid,
           name: text(row.name) || `Group ${row.id}`,
           fullName: text(row.full_name) || text(row.name) || `Group ${row.id}`,
-          privilege: many2oneName(row.privilege_id),
+          privilege: many2oneName(row[shape.groupCategory]),
           comment: text(row.comment),
           share: row.share === true,
           impliedIds: ids(row.implied_ids),
@@ -254,10 +307,21 @@ async function readCatalog(client, options = {}) {
       .sort(byKey((group) => group.key));
   };
 
+  // The installed version of base names the server's major version, which
+  // decides the allowlist. Any internal user can read it.
+  const version = await inSection("version", async () => {
+    const [base] = await read("ir.module.module", [["name", "=", "base"]]);
+    const major = /^(\d+)\./.exec(String(base?.latest_version || ""))?.[1] || "unknown";
+    if (!VERSIONS[major]) throw new CatalogError("unsupported_odoo_version", "version");
+    return major;
+  });
+  shape = VERSIONS[version];
+
   const catalog = {
     sections: SECTIONS.filter(has),
-    accessModel: null,
-    fieldGroups: null,
+    odooVersion: version,
+    accessModel: shape.accessModel,
+    fieldGroups: shape.fieldGroups,
     modules: [],
     modelIndex: [],
     models: [],
@@ -283,6 +347,7 @@ async function readCatalog(client, options = {}) {
           if (!owners.has(resId)) owners.set(resId, []);
           owners.get(resId).push(String(row.module));
         });
+      const abstractKnown = shape.fields["ir.model"].includes("abstract");
       catalog.modelIndex = rows
         .map((row) => {
           const modules = moduleList(row.modules);
@@ -292,7 +357,14 @@ async function readCatalog(client, options = {}) {
             id: row.id,
             model: String(row.model),
             name: text(row.name) || String(row.model),
-            kind: row.abstract ? "abstract" : row.transient ? "transient" : "model",
+            // Odoo 18 does not record which models are abstract.
+            kind: row.transient
+              ? "transient"
+              : !abstractKnown
+                ? null
+                : row.abstract
+                  ? "abstract"
+                  : "model",
             custom: row.state === "manual",
             modules,
             definedIn: definedIn || null,
@@ -300,12 +372,6 @@ async function readCatalog(client, options = {}) {
         })
         .sort(byKey((model) => model.model));
       modelById = new Map(catalog.modelIndex.map((model) => [model.id, model]));
-      // Odoo 20 introduced ir.access. Odoo 19 is also the version whose
-      // ir.model.fields.groups relation is never filled for fields defined in
-      // code, so its field groups say nothing about restrictions.
-      const odoo20 = catalog.modelIndex.some((model) => model.model === "ir.access");
-      catalog.accessModel = odoo20 ? "ir.access" : "ir.model.access";
-      catalog.fieldGroups = odoo20;
 
       const selected = catalog.modelIndex.filter((model) =>
         model.modules.length ? model.modules.some(selectedModule) : !config.include,
@@ -367,7 +433,8 @@ async function readCatalog(client, options = {}) {
           readonly: row.readonly === true,
           stored: row.store === true,
           index: indexKind(row.index),
-          translate: text(row.translate),
+          // A boolean on Odoo 18, the kind of translation on 19 and 20.
+          translate: row.translate === true ? "translated" : text(row.translate),
           related: text(row.related),
           help: text(row.help),
           custom: row.state === "manual",
@@ -537,7 +604,7 @@ async function readCatalog(client, options = {}) {
               path: childPath,
               depth,
               action: describeAction(child.action),
-              groups: await groupRefs(child.group_ids),
+              groups: await groupRefs(child[shape.groupsField]),
             });
             await walk(child, childPath, depth + 1);
           }
@@ -550,7 +617,7 @@ async function readCatalog(client, options = {}) {
           name: text(root.name) || `Menu ${root.id}`,
           sequence: Number(root.sequence) || 0,
           action: describeAction(root.action),
-          groups: await groupRefs(root.group_ids),
+          groups: await groupRefs(root[shape.groupsField]),
           menus,
         });
       }
@@ -582,7 +649,7 @@ async function readCatalog(client, options = {}) {
           name: text(row.name) || String(row.report_name),
           reportName: text(row.report_name),
           type: text(row.report_type),
-          groups: await groupRefs(row.group_ids),
+          groups: await groupRefs(row[shape.groupsField]),
         });
       }
       for (const model of catalog.models) {
@@ -603,7 +670,7 @@ async function readCatalog(client, options = {}) {
           name: text(row.name) || `Server action ${row.id}`,
           type: text(row.state),
           bound: many2oneId(row.binding_model_id) !== null,
-          groups: await groupRefs(row.group_ids),
+          groups: await groupRefs(row[shape.groupsField]),
         });
       }
       for (const model of catalog.models) {
@@ -624,7 +691,10 @@ async function readCatalog(client, options = {}) {
 module.exports = {
   CatalogError,
   DEFAULT_SECTIONS,
-  FIELDS,
+  BASE_FIELDS,
+  SUPPORTED_VERSIONS,
+  VERSIONS,
+  fieldsFor,
   MODEL_SECTIONS,
   SECTIONS,
   readCatalog,

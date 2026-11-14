@@ -8,13 +8,11 @@
     "ir.actions.server": {"name":"char","model_id":"many2one","state":"selection","binding_model_id":"many2one","group_ids":"many2many"},
     "ir.cron": {"cron_name":"char","model_id":"many2one","interval_number":"integer","interval_type":"selection","active":"boolean","priority":"integer"},
     "ir.model": {"model":"char","name":"char","modules":"char","transient":"boolean","abstract":"boolean","state":"selection"},
-    "ir.model.access": null,
     "ir.model.data": {"module":"char","name":"char","res_id":"many2one_reference"},
     "ir.model.fields": {"model_id":"many2one","name":"char","field_description":"char","ttype":"selection","relation":"char","relation_field":"char","required":"boolean","readonly":"boolean","store":"boolean","index":"selection","translate":"selection","related":"char","help":"text","state":"selection","modules":"char","groups":"many2many","company_dependent":"boolean","on_delete":"selection"},
     "ir.model.fields.selection": {"field_id":"many2one","value":"char","name":"char","sequence":"integer"},
     "ir.module.module": {"name":"char","shortdesc":"char","summary":"char","latest_version":"char","installed_version":"char","category_id":"many2one","application":"boolean","auto_install":"boolean","license":"selection"},
     "ir.module.module.dependency": {"module_id":"many2one","name":"char"},
-    "ir.rule": null,
     "ir.ui.menu": {"name":"char","parent_id":"many2one","action":"reference","sequence":"integer","group_ids":"many2many"},
     "res.groups": {"name":"char","full_name":"char","comment":"text","share":"boolean","privilege_id":"many2one","implied_ids":"many2many"}
   },
@@ -1863,6 +1861,13 @@
         {"id":1316,"module_id":[646,"Tours"],"name":"web"},
         {"id":1317,"module_id":[647,"Unsplash Image Library"],"name":"base_setup"},
         {"id":1318,"module_id":[647,"Unsplash Image Library"],"name":"html_editor"}
+      ]
+    },
+    {
+      "model": "ir.module.module",
+      "params": {"domain":[["name","=","base"]],"fields":["name","shortdesc","summary","latest_version","installed_version","category_id","application","auto_install","license"],"context":{"lang":"en_US"}},
+      "rows": [
+        {"id":34,"name":"base","shortdesc":"Base","summary":"","latest_version":"20.0.1.3","installed_version":"20.0.1.3","category_id":[5,"Technical"],"application":false,"auto_install":true,"license":"LGPL-3"}
       ]
     },
     {

@@ -12,7 +12,7 @@ const FIXTURE_OPTIONS = Object.freeze({
   lang: "en_US",
 });
 
-const VERSIONS = Object.freeze(["19", "20"]);
+const VERSIONS = Object.freeze(["18", "19", "20"]);
 
 function canonical(value) {
   if (value === null || typeof value !== "object") return JSON.stringify(value);

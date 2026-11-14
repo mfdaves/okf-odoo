@@ -4,7 +4,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const { CatalogError, DEFAULT_SECTIONS, FIELDS, readCatalog } = require("../src/catalog");
+const { CatalogError, DEFAULT_SECTIONS, fieldsFor, readCatalog } = require("../src/catalog");
 const { OdooError } = require("../src/odoo");
 const { FIXTURE_OPTIONS, ReplayClient, VERSIONS } = require("./support/replay-client");
 
@@ -42,13 +42,21 @@ for (const version of VERSIONS) {
   test(`Odoo ${version}: models carry their defining module, fields, access, and jobs`, async () => {
     const catalog = await readCatalog(ReplayClient.forVersion(version), FIXTURE_OPTIONS);
     assert.deepEqual(catalog.sections, [...FIXTURE_OPTIONS.sections]);
-    assert.equal(catalog.accessModel, version === "19" ? "ir.model.access" : "ir.access");
-    assert.equal(catalog.fieldGroups, version !== "19");
+    assert.equal(catalog.odooVersion, version);
+    assert.equal(catalog.accessModel, version === "20" ? "ir.access" : "ir.model.access");
+    assert.equal(catalog.fieldGroups, version === "20");
     const restricted = catalog.models.flatMap((model) =>
       model.fields.filter((field) => field.groups.length),
     );
-    // Odoo 19 leaves ir.model.fields.groups empty for fields defined in code.
-    assert.equal(restricted.length > 0, version !== "19");
+    // Odoo 18 and 19 leave ir.model.fields.groups empty for fields defined in code.
+    assert.equal(restricted.length > 0, version === "20");
+    // Odoo 18 does not record abstract models and stores translate as a boolean.
+    const teamKind = catalog.models.find((model) => model.model === "crm.team").kind;
+    assert.equal(teamKind, version === "18" ? null : "model");
+    const translated = catalog.models
+      .flatMap((model) => model.fields)
+      .find((field) => field.name === "name" && field.translate);
+    assert.equal(translated.translate, version === "18" ? "translated" : "standard");
 
     const team = catalog.models.find((model) => model.model === "crm.team");
     assert.equal(team.definedIn, "sales_team");
@@ -57,7 +65,7 @@ for (const version of VERSIONS) {
     assert.equal(leader.type, "many2one");
     assert.equal(leader.relation, "res.users");
     const company = team.fields.find((field) => field.name === "company_id");
-    assert.equal(company.index, version === "19" ? "indexed" : "btree");
+    assert.equal(company.index, version === "20" ? "btree" : "indexed");
 
     const restriction = team.access.find((entry) => entry.kind === "restriction");
     assert.deepEqual(restriction.groups, []);
@@ -108,14 +116,14 @@ for (const version of VERSIONS) {
     const catalog = await readCatalog(client, FIXTURE_OPTIONS);
     assert.doesNotMatch(JSON.stringify(catalog), new RegExp(`${marker}|987654321`));
     for (const call of client.calls) {
-      assert.deepEqual(call.params.fields, FIELDS[call.model], call.model);
+      assert.deepEqual(call.params.fields, fieldsFor(version)[call.model], call.model);
       assert.equal(call.params.context.lang, "en_US");
     }
     const requested = new Set(client.calls.map((call) => call.model));
     assert.equal(requested.has("ir.config_parameter"), false);
-    assert.equal(FIELDS["ir.actions.server"].includes("code"), false);
-    assert.equal(FIELDS["ir.cron"].includes("code"), false);
-    assert.equal(FIELDS["ir.model"].includes("count"), false);
+    assert.equal(fieldsFor(version)["ir.actions.server"].includes("code"), false);
+    assert.equal(fieldsFor(version)["ir.cron"].includes("code"), false);
+    assert.equal(fieldsFor(version)["ir.model"].includes("count"), false);
   });
 
   test(`Odoo ${version}: the catalog does not depend on the order rows arrive in`, async () => {
@@ -168,8 +176,11 @@ test("an unselected section is never read", async () => {
   assert.deepEqual(catalog.models, []);
   assert.deepEqual(catalog.modules, []);
   assert.ok(catalog.groups.length > 0);
+  // Only the installed version of base, which every run reads first.
+  assert.deepEqual(client.calls[0].params.domain, [["name", "=", "base"]]);
   assert.deepEqual([...new Set(client.calls.map((call) => call.model))].sort(), [
     "ir.model.data",
+    "ir.module.module",
     "res.groups",
   ]);
   assert.deepEqual(DEFAULT_SECTIONS.includes("serverActions"), false);
@@ -180,7 +191,8 @@ test("a section the key cannot read fails the run and names the section", async 
     ["ir.cron", "crons"],
     ["ir.actions.act_window", "menus"],
     ["ir.actions.server", "serverActions"],
-    ["ir.module.module", "modules"],
+    ["ir.module.module", "version"],
+    ["ir.module.module.dependency", "modules"],
     ["ir.model.access", "access"],
     ["ir.model.fields", "models"],
   ];
@@ -206,4 +218,20 @@ test("sections rendered on model concepts require the models section", async () 
     readCatalog(ReplayClient.forVersion("19"), { sections: ["access"] }),
     /access section requires the models section/,
   );
+});
+
+test("a server whose base module is not Odoo 18, 19 or 20 is refused", async () => {
+  for (const version of ["17.0.1.3", "21.0.1.0", ""]) {
+    const client = ReplayClient.forVersion("19", (model, rows, params) =>
+      model === "ir.module.module" && params.domain[0]?.[0] === "name"
+        ? rows.map((row) => ({ ...row, latest_version: version }))
+        : rows,
+    );
+    await assert.rejects(readCatalog(client, FIXTURE_OPTIONS), (error) => {
+      assert.ok(error instanceof CatalogError);
+      assert.equal(error.code, "unsupported_odoo_version");
+      assert.equal(error.section, "version");
+      return true;
+    });
+  }
 });

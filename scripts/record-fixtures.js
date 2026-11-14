@@ -8,34 +8,23 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { FIELDS, readCatalog } = require("../src/catalog");
-const { OdooError, createOdooClient } = require("../src/odoo");
+const { fieldsFor, readCatalog } = require("../src/catalog");
 const {
   FIXTURE_OPTIONS,
   VERSIONS,
   callKey,
   fixturePath,
 } = require("../test/support/replay-client");
+const { liveClient, required } = require("../test/support/live");
 
-function required(name) {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required; start the server with scripts/live-odoo.sh.`);
-  return value;
-}
-
-async function fieldShapes(client) {
+async function fieldShapes(client, version) {
+  const fields = fieldsFor(version);
   const shapes = {};
-  for (const model of Object.keys(FIELDS).sort()) {
-    try {
-      const described = await client.fieldsGet(model, ["type"]);
-      shapes[model] = Object.fromEntries(
-        FIELDS[model].map((field) => [field, described[field] ? described[field].type : null]),
-      );
-    } catch (error) {
-      // ir.access exists only from Odoo 20; ir.model.access and ir.rule only before.
-      if (!(error instanceof OdooError) || error.code !== "model_not_found") throw error;
-      shapes[model] = null;
-    }
+  for (const model of Object.keys(fields).sort()) {
+    const described = await client.fieldsGet(model, ["type"]);
+    shapes[model] = Object.fromEntries(
+      fields[model].map((field) => [field, described[field] ? described[field].type : null]),
+    );
   }
   return shapes;
 }
@@ -71,11 +60,7 @@ function serialize(fixture) {
 async function record() {
   const version = required("OKF_ODOO_VERSION");
   if (!VERSIONS.includes(version)) throw new Error(`Unsupported Odoo version ${version}.`);
-  const client = createOdooClient({
-    url: required("OKF_ODOO_URL"),
-    database: process.env.OKF_ODOO_DATABASE,
-    apiKey: required("OKF_ODOO_API_KEY"),
-  });
+  const client = liveClient();
   const calls = new Map();
   const recorder = {
     async searchRead(model, params) {
@@ -84,11 +69,14 @@ async function record() {
       return rows;
     },
   };
-  await readCatalog(recorder, FIXTURE_OPTIONS);
+  const catalog = await readCatalog(recorder, FIXTURE_OPTIONS);
+  if (catalog.odooVersion !== version) {
+    throw new Error(`The server runs Odoo ${catalog.odooVersion}, not ${version}.`);
+  }
   const fixture = {
     odoo: version,
     options: FIXTURE_OPTIONS,
-    shapes: await fieldShapes(client),
+    shapes: await fieldShapes(client, version),
     calls: [...calls.entries()]
       .sort(([left], [right]) => (left < right ? -1 : 1))
       .map(([, call]) => call),

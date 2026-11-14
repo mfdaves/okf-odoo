@@ -222,7 +222,11 @@ class Renderer {
           ? "indexed"
           : `indexed (${inline(field.index)})`
         : null,
-      field.translate ? `translated (${inline(field.translate)})` : null,
+      field.translate
+        ? field.translate === "translated"
+          ? "translated"
+          : `translated (${inline(field.translate)})`
+        : null,
       field.companyDependent ? "company-dependent" : null,
       field.related ? `related to ${codeSpan(field.related, { table: true })}` : null,
       field.onDelete ? `on delete ${inline(field.onDelete)}` : null,
@@ -263,7 +267,7 @@ class Renderer {
     const body = [
       `# ${inline(model.name)} (${codeSpan(model.model)})`,
       "",
-      `- Kind: ${kind[model.kind] || "model"}`,
+      `- Kind: ${kind[model.kind] || `model or abstract model (Odoo ${this.catalog.odooVersion} does not record which)`}`,
       `- Defined in: ${model.definedIn ? this.moduleRef(file, model.definedIn) : "no module (created in the database)"}`,
       `- Extended by: ${extenders.map((name) => this.moduleRef(file, name)).join(", ") || "no other module"}`,
       model.custom ? "- Custom model created in the database" : null,
@@ -271,7 +275,7 @@ class Renderer {
       "## Fields",
       "",
       this.catalog.fieldGroups === false
-        ? "Field groups are not available on Odoo 19: it does not record which groups may access a field defined in code, so this table cannot show field-level restrictions.\n"
+        ? `Field groups are not available on Odoo ${this.catalog.odooVersion}: it does not record which groups may access a field defined in code, so this table cannot show field-level restrictions.\n`
         : null,
       table(
         ["Field", "Label", "Type", "Relation", "Properties", "Modules", "Help"],
@@ -417,7 +421,9 @@ class Renderer {
         : `Odoo access group ${inline(group.fullName)}.`,
       "",
       group.xmlid ? `- XML id: ${codeSpan(group.xmlid)}` : "- No XML id (created in the database)",
-      group.privilege ? `- Privilege: ${inline(group.privilege)}` : null,
+      group.privilege
+        ? `- ${this.catalog.odooVersion === "18" ? "Application" : "Privilege"}: ${inline(group.privilege)}`
+        : null,
       `- Portal or public group: ${group.share ? "yes" : "no"}`,
       "",
       "## Implies",
