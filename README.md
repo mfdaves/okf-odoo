@@ -102,7 +102,7 @@ producers:
 | --- | --- | --- |
 | `url` | required | Base URL of the Odoo server, `http` or `https`, without credentials, query or fragment. |
 | `database` | none | Sent as the `X-Odoo-Database` header; needed when the server hosts several databases. |
-| `apiKeyEnv` | `ODOO_API_KEY` | Name of the environment variable that holds the API key. |
+| `apiKeyEnv` | required | Name of the environment variable that holds the API key. The host hands a producer only the variables its configuration names. |
 | `source` | `odoo` | Stable, non-secret alias used in `odoo://` resource locators and in the index title. |
 | `lang` | `en_US` | Language of labels, help texts and menu names. |
 | `sections` | all but `serverActions` | Which parts of the catalog to read: `modules`, `models`, `access`, `groups`, `menus`, `crons`, `reports`, `serverActions`. `access`, `crons`, `reports` and `serverActions` are tables on model concepts and require `models`. |

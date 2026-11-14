@@ -5,6 +5,7 @@ const test = require("node:test");
 const { CatalogError } = require("../src/catalog");
 const { generateOdoo, odooProducer, okfProducer, validateConfig } = require("../src/producer");
 const { startFakeOdoo } = require("./support/fake-odoo");
+const { producerHost, siblingAvailable } = require("./support/okf-mcp");
 const { FIXTURE_OPTIONS, fixtureHandler, loadFixture } = require("./support/replay-client");
 
 const API_KEY = "fixture-api-key-0123456789";
@@ -61,7 +62,7 @@ test("the descriptor declares Producer API v1 for OKF 0.2", () => {
 });
 
 test("validateConfig fills defaults for a minimal configuration", () => {
-  const result = validateConfig({ url: "https://erp.example.com/" });
+  const result = validateConfig({ url: "https://erp.example.com/", apiKeyEnv: "ODOO_API_KEY" });
   assert.equal(result.valid, true);
   assert.deepEqual(result.config, {
     url: "https://erp.example.com",
@@ -89,47 +90,25 @@ test("validateConfig fills defaults for a minimal configuration", () => {
 });
 
 test("validateConfig reports every invalid key without echoing its value", () => {
+  const BASE = { url: "https://erp.example.com", apiKeyEnv: "ODOO_API_KEY" };
   const cases = [
-    [{}, "missing_url", "url"],
-    [{ url: "https://admin:hunter2@erp.example.com" }, "invalid_url", "url"],
-    [{ url: "ftp://erp.example.com" }, "invalid_url", "url"],
-    [{ url: "https://erp.example.com", database: "a b" }, "invalid_database", "database"],
-    [
-      { url: "https://erp.example.com", apiKeyEnv: "hunter2 key" },
-      "invalid_api_key_env",
-      "apiKeyEnv",
-    ],
-    [{ url: "https://erp.example.com", source: "erp/prod" }, "invalid_source", "source"],
-    [{ url: "https://erp.example.com", lang: "English" }, "invalid_lang", "lang"],
-    [{ url: "https://erp.example.com", sections: [] }, "invalid_sections", "sections"],
-    [{ url: "https://erp.example.com", sections: ["views"] }, "invalid_sections", "sections"],
-    [
-      { url: "https://erp.example.com", sections: ["access"] },
-      "section_requires_models",
-      "sections",
-    ],
-    [{ url: "https://erp.example.com", modules: ["sale"] }, "invalid_modules", "modules"],
-    [
-      { url: "https://erp.example.com", modules: { include: ["Sale!"] } },
-      "invalid_module_patterns",
-      "modules.include",
-    ],
-    [
-      { url: "https://erp.example.com", modules: { only: ["sale"] } },
-      "unknown_config_key",
-      "modules.only",
-    ],
-    [
-      { url: "https://erp.example.com", otherModules: "full" },
-      "invalid_other_modules",
-      "otherModules",
-    ],
-    [{ url: "https://erp.example.com", apiKey: "hunter2" }, "unknown_config_key", "apiKey"],
-    [
-      { url: "https://erp.example.com", standardModules: "summary" },
-      "unknown_config_key",
-      "standardModules",
-    ],
+    [{ apiKeyEnv: "ODOO_API_KEY" }, "missing_url", "url"],
+    [{ url: "https://erp.example.com" }, "missing_api_key_env", "apiKeyEnv"],
+    [{ ...BASE, url: "https://admin:hunter2@erp.example.com" }, "invalid_url", "url"],
+    [{ ...BASE, url: "ftp://erp.example.com" }, "invalid_url", "url"],
+    [{ ...BASE, database: "a b" }, "invalid_database", "database"],
+    [{ ...BASE, apiKeyEnv: "hunter2 key" }, "invalid_api_key_env", "apiKeyEnv"],
+    [{ ...BASE, source: "erp/prod" }, "invalid_source", "source"],
+    [{ ...BASE, lang: "English" }, "invalid_lang", "lang"],
+    [{ ...BASE, sections: [] }, "invalid_sections", "sections"],
+    [{ ...BASE, sections: ["views"] }, "invalid_sections", "sections"],
+    [{ ...BASE, sections: ["access"] }, "section_requires_models", "sections"],
+    [{ ...BASE, modules: ["sale"] }, "invalid_modules", "modules"],
+    [{ ...BASE, modules: { include: ["Sale!"] } }, "invalid_module_patterns", "modules.include"],
+    [{ ...BASE, modules: { only: ["sale"] } }, "unknown_config_key", "modules.only"],
+    [{ ...BASE, otherModules: "full" }, "invalid_other_modules", "otherModules"],
+    [{ ...BASE, apiKey: "hunter2" }, "unknown_config_key", "apiKey"],
+    [{ ...BASE, standardModules: "summary" }, "unknown_config_key", "standardModules"],
   ];
   for (const [config, code, field] of cases) {
     const result = validateConfig(config);
@@ -190,4 +169,33 @@ test("generate refuses an invalid bundle, configuration, secret, or an aborted r
   controller.abort(new Error("stopped"));
   await assert.rejects(generateOdoo({ ...context, signal: controller.signal }), /stopped/);
   assert.equal(server.requests.length, 0);
+});
+
+test("under okf-mcp the API key variable must be named in the configuration", {
+  skip: siblingAvailable() ? false : "requires the sibling ../okf-mcp checkout",
+}, async (t) => {
+  const server = await fakeOdoo(t, "19");
+  const config = {
+    url: server.url,
+    sections: FIXTURE_OPTIONS.sections,
+    modules: FIXTURE_OPTIONS.modules,
+  };
+  const env = { ODOO_API_KEY: API_KEY, ERP_ODOO_KEY: API_KEY };
+
+  const implicit = producerHost({ config, env });
+  t.after(implicit.cleanup);
+  assert.deepEqual(implicit.project.errors, []);
+  const refused = await implicit.service.preview("odoo");
+  assert.equal(refused.valid, false);
+  assert.deepEqual(
+    refused.diagnostics.map((entry) => [entry.code, entry.field]),
+    [["missing_api_key_env", "apiKeyEnv"]],
+  );
+  assert.equal(server.requests.length, 0);
+
+  const named = producerHost({ config: { ...config, apiKeyEnv: "ERP_ODOO_KEY" }, env });
+  t.after(named.cleanup);
+  const preview = await named.service.preview("odoo");
+  assert.equal(preview.readyToApply, true, JSON.stringify(preview.diagnostics));
+  assert.ok(server.requests.length > 0);
 });

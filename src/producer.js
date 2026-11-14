@@ -63,8 +63,12 @@ function validateConfig(value = {}) {
     report("invalid_database", "database", "database must be an Odoo database name.");
   }
 
-  const apiKeyEnv = input.apiKeyEnv === undefined ? "ODOO_API_KEY" : input.apiKeyEnv;
-  if (typeof apiKeyEnv !== "string" || !ENV_NAME.test(apiKeyEnv)) {
+  // Required: a host such as okf-mcp hands over only the secrets whose
+  // variable names appear in the configuration it was given.
+  const apiKeyEnv = input.apiKeyEnv === undefined ? null : input.apiKeyEnv;
+  if (apiKeyEnv === null) {
+    report("missing_api_key_env", "apiKeyEnv", "apiKeyEnv is required.");
+  } else if (typeof apiKeyEnv !== "string" || !ENV_NAME.test(apiKeyEnv)) {
     report("invalid_api_key_env", "apiKeyEnv", "apiKeyEnv must be an environment-variable name.");
   }
 

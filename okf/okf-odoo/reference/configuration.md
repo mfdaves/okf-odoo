@@ -19,8 +19,8 @@ The producer configuration lives under `producers[].config` in
 - `url` (required): base URL of the Odoo server, `http` or `https`, without
   credentials, query or fragment.
 - `database`: database name sent as the `X-Odoo-Database` header.
-- `apiKeyEnv` (default `ODOO_API_KEY`): environment variable holding the API
-  key.
+- `apiKeyEnv` (required): environment variable holding the API key; the host
+  hands a producer only the variables its configuration names.
 - `source` (default `odoo`): alias used in `odoo://` resource locators.
 - `lang` (default `en_US`): language of labels and menu names.
 - `sections` (default every section but `serverActions`): `modules`,
