@@ -19,7 +19,7 @@ function createOdooToolPack(dependencies = {}) {
       annotations: Object.freeze(annotations(tool.title)),
       inputSchema: tool.inputSchema,
       outputSchema: tool.outputSchema,
-      scope: SCOPE,
+      scope: tool.scope || SCOPE,
       requiresSubjectToken: true,
       // The principal is not needed: Odoo identifies the user by the token.
       handler: (args, ctx = {}) =>

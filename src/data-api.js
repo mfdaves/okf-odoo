@@ -8,7 +8,9 @@
 
 const { OdooError, normalizeBaseUrl, postJson } = require("./odoo");
 
-const OPS = new Set(["models", "describe", "search", "read", "group"]);
+const OPS = new Set(["models", "describe", "search", "read", "group", "sql"]);
+// PostgreSQL's own message about an SQL query, as the data API caps it.
+const MAX_SQL_MESSAGE = 500;
 // Below the host's own per-call limit (30 s in okf-mcp), so the host hears
 // this pack's timeout rather than cutting the call off itself.
 const DEFAULT_TIMEOUT_MS = 25000;
@@ -26,6 +28,8 @@ const MESSAGES = {
   unknown_model: "Odoo has no such model, or it is not exposed.",
   result_too_large: "The result is too large; ask for fewer records or fields.",
   query_error: "Odoo could not run the query; check field names, operators and values.",
+  too_many_requests: "Too many queries are running for this user or server; try again shortly.",
+  unavailable: "SQL queries are not available on this Odoo server right now.",
   timeout: "The query took too long.",
   // The connector.
   aborted: "The request was cancelled.",
@@ -50,6 +54,8 @@ const CONTRACT_CODES = new Set([
   "unknown_model",
   "result_too_large",
   "query_error",
+  "too_many_requests",
+  "unavailable",
   "timeout",
 ]);
 
@@ -63,8 +69,36 @@ class OdooToolError extends Error {
     if (details.field) {
       this.details = { field: details.field.split("/")[1] || null, path: details.field };
     }
+    if (details.sql) this.details = details.sql;
     if (details.status) this.status = details.status;
   }
+}
+
+// PostgreSQL's answer to an SQL query (sql only): the data API passes it on
+// because the sandbox holds only rows the user may read, and an agent needs
+// it to correct its query. Reduced to a valid SQLSTATE, a 1-based position
+// and one line of at most 500 characters; a message holding the token or a
+// credential is dropped.
+function sqlErrorDetails(value, hidden) {
+  if (!value || typeof value !== "object" || Array.isArray(value)) return null;
+  const sqlstate =
+    typeof value.sqlstate === "string" && /^[0-9A-Z]{5}$/.test(value.sqlstate)
+      ? value.sqlstate
+      : null;
+  const position =
+    Number.isInteger(value.position) && value.position > 0 && value.position <= 1000000
+      ? value.position
+      : null;
+  let message =
+    typeof value.message === "string"
+      ? value.message
+          .toWellFormed()
+          .replace(/[\p{Cc}\u2028\u2029]+/gu, " ")
+          .trim()
+          .slice(0, MAX_SQL_MESSAGE)
+      : null;
+  if (!message || hidden.some((secret) => secret && message.includes(secret))) message = null;
+  return { sqlstate, position, message };
 }
 
 // RFC 6749 section 2.3.1: client id and secret are form-urlencoded before
@@ -138,14 +172,19 @@ async function callDataApi(options) {
     }
     return body.result;
   }
-  const code = body?.error?.code;
-  throw new OdooToolError(CONTRACT_CODES.has(code) ? code : "server_error", { status });
+  const code = CONTRACT_CODES.has(body?.error?.code) ? body.error.code : "server_error";
+  const sql =
+    op === "sql" && code === "query_error"
+      ? sqlErrorDetails(body.error.details, [token, clientId, clientSecret])
+      : null;
+  throw new OdooToolError(code, { status, ...(sql ? { sql } : {}) });
 }
 
 module.exports = {
   CONTRACT_CODES,
   DEFAULT_TIMEOUT_MS,
   MAX_RESPONSE_BYTES,
+  MAX_SQL_MESSAGE,
   OdooToolError,
   basicCredentials,
   callDataApi,

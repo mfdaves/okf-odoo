@@ -154,7 +154,8 @@ const TOOLS = [
     title: "Describe an Odoo model",
     description: [
       "List the fields of one Odoo model as the signed-in user sees them: technical name, label, type, related model, whether it is required or read-only, selection values and help text.",
-      "Call it, or read the model's concept in the `odoo` knowledge bundle, before odoo_search, odoo_read or odoo_group. Fields the user may not read are left out.",
+      "Call it, or read the model's concept in the `odoo` knowledge bundle, before odoo_search, odoo_read, odoo_group or odoo_sql. Fields the user may not read are left out.",
+      "When the server provides it, table is the model's database table for odoo_sql; it is not always the model name with dots replaced by underscores.",
     ].join(" "),
     inputSchema: objectSchema({ model: MODEL }, ["model"]),
     outputSchema: {
@@ -162,6 +163,7 @@ const TOOLS = [
       properties: {
         model: { type: "string" },
         name: { type: "string" },
+        table: { type: "string" },
         fields: RECORDS,
       },
       required: ["model", "fields"],
@@ -294,6 +296,69 @@ const TOOLS = [
       required: ["groups"],
     },
     params: (args) => ({ domain: [], limit: 80, ...args }),
+    result: objectResult,
+  },
+  {
+    name: "odoo_sql",
+    op: "sql",
+    scope: "odoo.sql",
+    title: "Query Odoo with SQL",
+    description: [
+      "Run one read-only PostgreSQL query on Odoo's tables: a single SELECT, VALUES or TABLE statement; no INTO, FOR UPDATE, writes or several statements.",
+      "The query sees exactly the rows and fields the signed-in user may read in Odoo (access rights, record rules, field groups, all of the user's companies); other rows are absent, not hidden behind an error.",
+      "Write it against database table and column names. Find them in the generated `odoo` knowledge bundle or with odoo_describe_model, whose result gives the model's table when the server provides it: a table is not always the model name with dots replaced by underscores (res.partner is res_partner, but check). One-to-many fields are not columns; join the other table. A many-to-many table holds only pairs whose both records the user may read.",
+      "Name the columns you need instead of SELECT *: only named columns are copied for the query, so it runs faster, and large tables may otherwise exceed the copy limit (result_too_large).",
+      "Values come as JSON: numbers for numeric columns, ISO 8601 strings for dates and times, seconds for intervals, \\x… hexadecimal for bytea. limit is 1 to 1000 rows (default 100); truncated is true when there are more. tables lists the tables copied, with their model and the rows the user may read.",
+      "A query_error carries PostgreSQL's sqlstate, position and message so you can fix the query: 0A000 means the statement is not allowed, 42601 a syntax error, 42P01 a table that is unknown, hidden or not readable (deliberately the same answer).",
+      "A user may run at most two queries at once by default (too_many_requests otherwise); unavailable means SQL is not set up on this server. Prefer odoo_search and odoo_group for simple lookups and totals.",
+    ].join(" "),
+    inputSchema: objectSchema(
+      {
+        query: {
+          type: "string",
+          minLength: 1,
+          maxLength: 20000,
+          description: "One SELECT, VALUES or TABLE statement, at most 20000 characters.",
+        },
+        limit: {
+          type: "integer",
+          minimum: 1,
+          maximum: 1000,
+          description: "Rows to return, 1 to 1000; default 100.",
+        },
+      },
+      ["query"],
+    ),
+    outputSchema: {
+      type: "object",
+      properties: {
+        columns: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { name: { type: "string" }, type: { type: "string" } },
+            required: ["name", "type"],
+          },
+        },
+        rows: { type: "array", items: { type: "array" } },
+        truncated: { type: "boolean" },
+        elapsedMs: { type: "integer" },
+        tables: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              model: { type: ["string", "null"] },
+              rows: { type: "integer" },
+            },
+            required: ["name", "model", "rows"],
+          },
+        },
+      },
+      required: ["columns", "rows", "truncated", "tables"],
+    },
+    params: (args) => ({ limit: 100, ...args }),
     result: objectResult,
   },
 ];

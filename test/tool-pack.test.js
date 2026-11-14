@@ -12,7 +12,14 @@ const TOKEN = "SENTINEL-subject-token-4f1d";
 const CLIENT_ID = "rs client+id:1é";
 const CLIENT_SECRET = "SENTINEL secret/+&=:%";
 const ENV = { O3P_CLIENT_ID: CLIENT_ID, O3P_CLIENT_SECRET: CLIENT_SECRET };
-const NAMES = ["odoo_find_models", "odoo_describe_model", "odoo_search", "odoo_read", "odoo_group"];
+const NAMES = [
+  "odoo_find_models",
+  "odoo_describe_model",
+  "odoo_search",
+  "odoo_read",
+  "odoo_group",
+  "odoo_sql",
+];
 
 // A stand-in for the o3p_mcp data API. `reply(request)` returns
 // { status, body, contentType } or a function that writes the raw response.
@@ -85,6 +92,11 @@ const ARGS = {
     order: "amount_total:sum desc",
     limit: 20,
   },
+  odoo_sql: {
+    query:
+      "SELECT p.name, count(o.id) FROM res_partner p JOIN sale_order o ON o.partner_id = p.id GROUP BY p.name",
+    limit: 5,
+  },
 };
 
 const RESULTS = {
@@ -93,6 +105,19 @@ const RESULTS = {
   search: { records: [{ id: 1, name: "S1" }], count: 1, truncated: false },
   read: { records: [{ id: 1, name: "S1" }] },
   group: { groups: [{ partner_id: [3, "P"], amount_total: 10, __count: 1 }] },
+  sql: {
+    columns: [
+      { name: "name", type: "character varying" },
+      { name: "count", type: "bigint" },
+    ],
+    rows: [["P", 2]],
+    truncated: false,
+    elapsedMs: 41,
+    tables: [
+      { name: "res_partner", model: "res.partner", rows: 12 },
+      { name: "sale_order", model: "sale.order", rows: 3 },
+    ],
+  },
 };
 
 function rejectsWith(promise, code) {
@@ -103,7 +128,7 @@ function rejectsWith(promise, code) {
   });
 }
 
-test("the pack declares API v1, id odoo and five read-only odoo.read tools", () => {
+test("the pack declares API v1, id odoo and six read-only tools", () => {
   assert.equal(exported, okfToolPack);
   assert.ok(okfProducer, "the producer is still exported next to the pack");
   assert.equal(okfToolPack.apiVersion, "1");
@@ -112,7 +137,7 @@ test("the pack declares API v1, id odoo and five read-only odoo.read tools", () 
   assert.deepEqual(Object.keys(okfToolPack.tools), NAMES);
   for (const [name, tool] of Object.entries(okfToolPack.tools)) {
     assert.match(name, /^[a-z][a-z0-9_]{2,63}$/);
-    assert.equal(tool.scope, "odoo.read");
+    assert.equal(tool.scope, name === "odoo_sql" ? "odoo.sql" : "odoo.read");
     assert.equal(tool.requiresSubjectToken, true);
     assert.equal(typeof tool.handler, "function");
     assert.equal(tool.inputSchema.type, "object");
@@ -120,7 +145,7 @@ test("the pack declares API v1, id odoo and five read-only odoo.read tools", () 
     assert.equal(tool.outputSchema.type, "object");
     assert.equal(tool.annotations.readOnlyHint, true);
     assert.equal(tool.annotations.destructiveHint, false);
-    assert.ok(tool.description.length > 100 && tool.description.length < 1500, name);
+    assert.ok(tool.description.length > 100 && tool.description.length < 2000, name);
   }
   const { odoo_search: search, odoo_group: group, odoo_read: read } = okfToolPack.tools;
   assert.match(search.description, /`odoo` knowledge bundle/);
@@ -152,7 +177,7 @@ test("each tool posts its operation with Basic client credentials and the subjec
   }
   assert.deepEqual(
     server.requests.map((request) => [request.method, request.url]),
-    ["models", "describe", "search", "read", "group"].map((op) => [
+    ["models", "describe", "search", "read", "group", "sql"].map((op) => [
       "POST",
       `/o3p_mcp/api/v1/${op}`,
     ]),
@@ -175,6 +200,8 @@ test("each tool posts its operation with Basic client credentials and the subjec
   assert.deepEqual(params[2], ARGS.odoo_search);
   assert.deepEqual(params[3], ARGS.odoo_read);
   assert.deepEqual(params[4], ARGS.odoo_group);
+  assert.deepEqual(params[5], ARGS.odoo_sql);
+  assert.deepEqual(results.odoo_sql, RESULTS.sql);
   assert.deepEqual(results.odoo_find_models, { models: RESULTS.models });
   assert.deepEqual(results.odoo_search, RESULTS.search);
   assert.deepEqual(results.odoo_group, RESULTS.group);
@@ -491,4 +518,117 @@ test("an argument error names the offending parameter in details, never a status
       return true;
     },
   );
+});
+
+test("odoo_sql teaches its rules and defaults to 100 rows", async (t) => {
+  const sql = okfToolPack.tools.odoo_sql;
+  for (const pattern of [
+    /single SELECT, VALUES or TABLE statement/,
+    /exactly the rows and fields the signed-in user may read/,
+    /all of the user's companies/,
+    /`odoo` knowledge bundle or with odoo_describe_model/,
+    /not always the model name with dots replaced/,
+    /instead of SELECT \*/,
+    /\\x… hexadecimal for bytea/,
+    /0A000.*42601.*42P01/,
+    /at most two queries at once/,
+  ]) {
+    assert.match(sql.description, pattern);
+  }
+  assert.match(okfToolPack.tools.odoo_describe_model.description, /table/);
+  assert.deepEqual(sql.outputSchema.required, ["columns", "rows", "truncated", "tables"]);
+  const server = await fakeDataApi(t, () => ({ body: { result: RESULTS.sql } }));
+  await sql.handler({ query: "SELECT 1" }, context(server.url));
+  assert.deepEqual(server.requests[0].body.params, { limit: 100, query: "SELECT 1" });
+  for (const args of [
+    {},
+    { query: "" },
+    { query: "SELECT 1", limit: 0 },
+    { query: "SELECT 1", limit: 1001 },
+    { query: "x".repeat(20001) },
+    { query: "SELECT 1", model: "res.partner" },
+  ]) {
+    await assert.rejects(sql.handler(args, context(server.url)), (error) => {
+      assert.equal(error.code, "invalid_arguments");
+      return true;
+    });
+  }
+  assert.equal(server.requests.length, 1);
+});
+
+test("odoo_sql passes on PostgreSQL's answer, bounded, and the SQL-only codes", async (t) => {
+  let next = null;
+  const server = await fakeDataApi(t, () => next);
+  const sql = okfToolPack.tools.odoo_sql;
+  const queryError = (details) => ({
+    status: 422,
+    body: { error: { code: "query_error", message: "The query could not be run.", details } },
+  });
+  const cases = [
+    [
+      { sqlstate: "42703", position: 8, message: 'column "nope" does not exist' },
+      { sqlstate: "42703", position: 8, message: 'column "nope" does not exist' },
+    ],
+    [
+      { sqlstate: "42P01", position: null, message: `relation "x" does not exist\nLINE 1:\u0085` },
+      { sqlstate: "42P01", position: null, message: 'relation "x" does not exist LINE 1:' },
+    ],
+    [
+      { sqlstate: "0A000", position: 1, message: "y".repeat(800) },
+      { sqlstate: "0A000", position: 1, message: "y".repeat(500) },
+    ],
+    [
+      { sqlstate: "4270", position: "8", message: `echo ${TOKEN}` },
+      { sqlstate: null, position: null, message: null },
+    ],
+    [
+      { sqlstate: "42601", position: -3, message: `near ${CLIENT_SECRET}` },
+      { sqlstate: "42601", position: null, message: null },
+    ],
+  ];
+  for (const [sent, expected] of cases) {
+    next = queryError(sent);
+    await assert.rejects(sql.handler(ARGS.odoo_sql, context(server.url)), (error) => {
+      assert.equal(error.code, "query_error");
+      assert.deepEqual(error.details, expected);
+      assert.doesNotMatch(JSON.stringify(error.details), /SENTINEL/);
+      return true;
+    });
+  }
+  next = queryError(undefined);
+  await assert.rejects(sql.handler(ARGS.odoo_sql, context(server.url)), (error) => {
+    assert.equal(error.code, "query_error");
+    assert.equal(error.details, undefined);
+    return true;
+  });
+  // Only sql carries PostgreSQL's answer; another operation's details are dropped.
+  next = queryError({ sqlstate: "42703", position: 1, message: "m" });
+  await assert.rejects(
+    okfToolPack.tools.odoo_search.handler(ARGS.odoo_search, context(server.url)),
+    (error) => error.code === "query_error" && error.details === undefined,
+  );
+  for (const [status, code] of [
+    [429, "too_many_requests"],
+    [503, "unavailable"],
+    [413, "result_too_large"],
+    [504, "timeout"],
+    [403, "insufficient_scope"],
+  ]) {
+    next = { status, body: { error: { code, message: `SENTINEL ${TOKEN}` } } };
+    await rejectsWith(sql.handler(ARGS.odoo_sql, context(server.url)), code);
+  }
+});
+
+test("odoo_sql stops on abort and on its timeout", async (t) => {
+  const server = await fakeDataApi(t, () => undefined);
+  const controller = new AbortController();
+  const pending = okfToolPack.tools.odoo_sql.handler(
+    ARGS.odoo_sql,
+    context(server.url, { signal: controller.signal }),
+  );
+  setTimeout(() => controller.abort(), 20);
+  await rejectsWith(pending, "aborted");
+  const slow = context(server.url);
+  slow.config = { ...slow.config, timeoutMs: 1000 };
+  await rejectsWith(okfToolPack.tools.odoo_sql.handler(ARGS.odoo_sql, slow), "timeout");
 });

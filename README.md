@@ -211,7 +211,7 @@ reuse.
 ## Odoo data tools (experimental)
 
 `okfToolPack` gives an MCP host such as `okf-mcp` (tool-pack API v1, which is
-experimental and may still change) five read-only tools for live records:
+experimental and may still change) six read-only tools for live records:
 
 | Tool | Data API operation | Purpose |
 | --- | --- | --- |
@@ -220,8 +220,9 @@ experimental and may still change) five read-only tools for live records:
 | `odoo_search` | `search` | Records matching a domain, with the requested fields (at most 200 per call) |
 | `odoo_read` | `read` | Records by id (at most 100) |
 | `odoo_group` | `group` | Grouped totals such as `amount_total:sum` and `__count` (at most 500 groups) |
+| `odoo_sql` | `sql` | One read-only `SELECT`, `VALUES` or `TABLE` statement on the database tables, over only the rows and fields the user may read (at most 1000 rows; default 100) |
 
-Each tool requires the `odoo.read` scope. The tools do not read Odoo
+Each tool requires the `odoo.read` scope, `odoo_sql` the `odoo.sql` scope. The tools do not read Odoo
 directly: every call is a `POST {url}/o3p_mcp/api/v1/{op}` to the data API of
 the `o3p_mcp` Odoo addon, authenticated with the MCP server's
 resource-server client credentials (HTTP Basic) and carrying the signed-in
@@ -252,10 +253,26 @@ where a signed-in user's token exists. Arguments are checked against each
 tool's input schema before any request; an `invalid_arguments` error carries
 `details.field` (the offending parameter) and `details.path` so an agent can
 correct its call.
+
+`odoo_sql` returns `{ columns: [{ name, type }], rows, truncated, elapsedMs,
+tables: [{ name, model, rows }] }`: numbers for numeric columns, ISO 8601
+strings for dates and times, seconds for intervals, `\x…` hexadecimal for
+`bytea`. The Odoo addon copies only the readable rows and the named columns
+of the tables a query names into a separate sandbox and runs the query
+there, so its errors cannot reveal anything else: a `query_error` from
+`odoo_sql` carries PostgreSQL's answer in `details` (`sqlstate`, 1-based
+`position`, `message` of at most 500 characters; `0A000` for a statement
+other than one `SELECT`, `42601` for a syntax error, `42P01` for a table
+that is unknown, hidden or not readable alike). A message that contains the
+token or a credential is dropped. The description tells an agent to name
+columns rather than `SELECT *` and to take table and column names from the
+`odoo` knowledge bundle or `odoo_describe_model`.
+
 Errors are bounded codes with fixed messages: the data API's own
 (`invalid_params`, `invalid_client`, `invalid_token`, `insufficient_scope`,
 `access_denied`, `unknown_op`, `unknown_model`, `result_too_large`,
-`query_error`, `timeout`) and the connector's (`invalid_arguments`,
+`query_error`, `timeout`, and for `odoo_sql` `too_many_requests` and
+`unavailable`) and the connector's (`invalid_arguments`,
 `subject_token_required`, `client_credentials_unavailable`, `invalid_config`,
 `data_api_unavailable`, `connection_failed`, `invalid_response`, `aborted`,
 `server_error`). Odoo's error text, the user's token and the client

@@ -2,7 +2,7 @@
 id: okf://okf-odoo/reference/data-tools
 type: OKF Reference
 title: okf-odoo data tools
-description: Read-only Odoo data tools that okf-odoo offers to an MCP host as an experimental tool pack.
+description: Read-only Odoo data and SQL tools that okf-odoo offers to an MCP host as an experimental tool pack.
 tags: [okf, odoo, mcp, tools]
 relations:
   - type: configured_by
@@ -19,7 +19,9 @@ relations:
 
 `okfToolPack` (tool-pack API version 1, id `odoo`) offers `odoo_find_models`,
 `odoo_describe_model`, `odoo_search`, `odoo_read` and `odoo_group`, each with
-the scope `odoo.read`.
+the scope `odoo.read`, and `odoo_sql` with the scope `odoo.sql`: one
+read-only statement over only the rows and fields the user may read, whose
+`query_error` carries PostgreSQL's `sqlstate`, `position` and `message`.
 
 Each tool posts to `{url}/o3p_mcp/api/v1/{op}` of the `o3p_mcp` Odoo addon
 with the MCP server's resource-server credentials as HTTP Basic and the
