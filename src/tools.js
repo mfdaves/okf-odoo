@@ -109,6 +109,10 @@ const RIGHTS =
 // by everyone.
 const SHARING =
   "These results are limited to the signed-in user's own Odoo access, but knowledge written from them is readable by every MCP user: record conclusions and aggregates, not personal or confidential values (names of individuals, salaries, health or contact details) that other readers could not see in Odoo.";
+const FIELD_FLAGS =
+  "Filter only on fields odoo_describe_model marks searchable, sort only on sortable ones and group only on groupable ones.";
+const EXPLAINED =
+  "When Odoo refuses a call (invalid_params, unknown_model, access_denied), the error's details name the parameter (field), the reason and a hint: read them and correct the call.";
 const LOOK_UP_FIRST =
   "Before searching, look up the model in the generated `odoo` knowledge bundle (its models/<model> concept lists the fields, relations and access rules) or call odoo_describe_model, so that you use real field names.";
 
@@ -120,6 +124,8 @@ const TOOLS = [
     description: [
       "Find the Odoo models (business object types, such as res.partner for contacts) that the signed-in user may read, matching a word in the technical name or the label.",
       "Use it when you do not know which model holds the data. The `odoo` knowledge bundle describes the models too, with their fields and access rules.",
+      "total is the number of matching models and truncated is true when more exist than limit; page with offset.",
+      "Odoo sometimes pairs a restricted model with a public one that more users may read, for example hr.employee.public next to hr.employee: when a model is denied, look for such a public counterpart.",
       RIGHTS,
     ].join(" "),
     inputSchema: objectSchema(
@@ -130,6 +136,12 @@ const TOOLS = [
           description: "Word to look for in the model name or label; omit to list models.",
         },
         limit: { type: "integer", minimum: 1, maximum: 50, description: "At most 50; default 50." },
+        offset: {
+          type: "integer",
+          minimum: 0,
+          maximum: 100000,
+          description: "Models to skip, for paging.",
+        },
       },
       [],
     ),
@@ -144,11 +156,16 @@ const TOOLS = [
             required: ["model", "name"],
           },
         },
+        total: { type: "integer" },
+        truncated: { type: "boolean" },
       },
       required: ["models"],
     },
     params: (args) => ({ ...args }),
-    result: (models) => (Array.isArray(models) ? { models } : null),
+    // Older servers answer with the bare list, newer ones with { models,
+    // total, truncated }.
+    result: (value) =>
+      Array.isArray(value) ? { models: value } : Array.isArray(value?.models) ? value : null,
   },
   {
     name: "odoo_describe_model",
@@ -158,6 +175,8 @@ const TOOLS = [
       "List the fields of one Odoo model as the signed-in user sees them: technical name, label, type, related model, whether it is required or read-only, selection values and help text.",
       "Call it, or read the model's concept in the `odoo` knowledge bundle, before odoo_search, odoo_read, odoo_group or odoo_sql. Fields the user may not read are left out.",
       "When the server provides it, table is the model's database table for odoo_sql; it is not always the model name with dots replaced by underscores.",
+      "Each field says whether it is stored, searchable (usable in a domain), sortable (usable in order) and groupable (usable in odoo_group's groupby); use fields only where they are marked so.",
+      EXPLAINED,
     ].join(" "),
     inputSchema: objectSchema({ model: MODEL }, ["model"]),
     outputSchema: {
@@ -165,8 +184,28 @@ const TOOLS = [
       properties: {
         model: { type: "string" },
         name: { type: "string" },
-        table: { type: "string" },
-        fields: RECORDS,
+        table: { type: ["string", "null"] },
+        fields: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              string: { type: "string" },
+              type: { type: "string" },
+              relation: { type: "string" },
+              required: { type: "boolean" },
+              readonly: { type: "boolean" },
+              stored: { type: "boolean" },
+              searchable: { type: "boolean" },
+              sortable: { type: "boolean" },
+              groupable: { type: "boolean" },
+              selection: { type: "array" },
+              help: { type: "string" },
+            },
+            required: ["name", "type"],
+          },
+        },
       },
       required: ["model", "fields"],
     },
@@ -180,6 +219,8 @@ const TOOLS = [
     description: [
       "Search records of one Odoo model and return the requested fields of each.",
       LOOK_UP_FIRST,
+      FIELD_FLAGS,
+      EXPLAINED,
       'The domain is a list of [field, operator, value] conditions that must all hold; put "|" before two conditions for OR. Examples: [["state", "=", "done"], ["date", ">=", "2026-01-01"]] and ["|", ["name", "ilike", "chair"], ["default_code", "=", "A100"]].',
       'Operators: =, !=, >, >=, <, <=, in, not in, like, ilike, not ilike, =like, =ilike, any; the hierarchy operators child_of and parent_of are not available. A text condition on a relation, such as ["partner_id", "ilike", "north"], matches the related record\'s display name among records the user may read; compare ids for exact matches. A field path follows at most 4 fields (partner_id.country_id.code). A many2one value comes back as [id, display name].',
       "On models whose reads hide part of a record (such as private calendar events), filters, sorting and grouping may use only id and the public fields; others are refused with invalid_params.",
@@ -222,6 +263,7 @@ const TOOLS = [
     description: [
       "Read the requested fields of Odoo records by id (at most 100), for example ids returned by odoo_search or the id in a many2one value [id, display name].",
       LOOK_UP_FIRST,
+      EXPLAINED,
       "Ids that do not exist and records the signed-in user may not read are silently left out, so fewer records than ids may come back.",
       SHARING,
     ].join(" "),
@@ -254,6 +296,8 @@ const TOOLS = [
     description: [
       "Group the records of one Odoo model and compute totals, like a pivot table.",
       LOOK_UP_FIRST,
+      FIELD_FLAGS,
+      EXPLAINED,
       'groupby lists fields; a date field needs a granularity: "date:month" (day, week, month, quarter, year, or hour for date-times). aggregates are written "field:function": sum, avg, min or max on numeric fields, count or count_distinct on stored fields, and "__count" counts records. Example: groupby ["partner_id"], aggregates ["amount_total:sum", "__count"], order "amount_total:sum desc".',
       "Each group carries its groupby values and aggregates: a relation as [id, display name], a date bucket as [start, label].",
       "The domain has the same syntax as in odoo_search, with paths of at most 4 fields. At most 500 groups.",

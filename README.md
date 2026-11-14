@@ -215,8 +215,8 @@ experimental and may still change) six read-only tools for live records:
 
 | Tool | Data API operation | Purpose |
 | --- | --- | --- |
-| `odoo_find_models` | `models` | Find models the signed-in user may read, by name or label |
-| `odoo_describe_model` | `describe` | The fields of a model as that user sees them |
+| `odoo_find_models` | `models` | Find models the signed-in user may read, by name or label, paged with `offset` (`total`, `truncated`) |
+| `odoo_describe_model` | `describe` | The fields of a model as that user sees them, with whether each is stored, searchable, sortable and groupable |
 | `odoo_search` | `search` | Records matching a domain, with the requested fields (at most 200 per call) |
 | `odoo_read` | `read` | Records by id (at most 100) |
 | `odoo_group` | `group` | Grouped totals such as `amount_total:sum` and `__count` (at most 500 groups) |
@@ -247,6 +247,11 @@ toolPacks:
 | `clientIdEnv` | required | Environment variable holding the resource-server client id. |
 | `clientSecretEnv` | required | Environment variable holding the resource-server client secret. |
 | `timeoutMs` | `25000` | Time limit per call, 1000 to 120000 ms. Keep it below the host's own limit (okf-mcp: the `timeoutMs` of the `toolPacks` entry, 30 s by default), or the host answers `tool_pack_timeout` before the pack can report `timeout`. |
+
+When the data API explains a refusal, the tool error's `details` carry its
+`field`, `reason` and `hint` (schema names and fixed texts, each at most 200
+characters, dropped if they hold the token or a credential), so an agent can
+correct its call; `odoo_sql`'s `query_error` adds PostgreSQL's answer.
 
 Every tool declares `requiresSubjectToken: true`, so the host lists it only
 where a signed-in user's token exists. Arguments are checked against each

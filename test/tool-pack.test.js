@@ -648,3 +648,115 @@ test("odoo_sql stops on abort and on its timeout", async (t) => {
   slow.config = { ...slow.config, timeoutMs: 1000 };
   await rejectsWith(okfToolPack.tools.odoo_sql.handler(ARGS.odoo_sql, slow), "timeout");
 });
+
+test("an error's field, reason and hint reach the host as bounded details", async (t) => {
+  let next = null;
+  const server = await fakeDataApi(t, () => next);
+  const tools = okfToolPack.tools;
+  const refuse = (status, code, details) => ({
+    status,
+    body: { error: { code, message: "fixed text", details } },
+  });
+  next = refuse(400, "invalid_params", {
+    field: "domain",
+    reason: "unknown_field",
+    hint: "Use odoo_describe_model to list the searchable fields.",
+    extra: "ignored",
+  });
+  await assert.rejects(
+    tools.odoo_search.handler(ARGS.odoo_search, context(server.url)),
+    (error) => {
+      assert.equal(error.code, "invalid_params");
+      assert.deepEqual(error.details, {
+        field: "domain",
+        reason: "unknown_field",
+        hint: "Use odoo_describe_model to list the searchable fields.",
+      });
+      return true;
+    },
+  );
+  next = refuse(400, "invalid_params", {
+    field: 42,
+    reason: `holds ${TOKEN}`,
+    hint: `${"h".repeat(300)}\nsecond line`,
+  });
+  await assert.rejects(tools.odoo_group.handler(ARGS.odoo_group, context(server.url)), (error) => {
+    assert.deepEqual(error.details, { hint: "h".repeat(200) });
+    return true;
+  });
+  for (const [status, code, tool] of [
+    [404, "unknown_model", "odoo_describe_model"],
+    [403, "access_denied", "odoo_read"],
+  ]) {
+    next = refuse(status, code, { field: "model", reason: code, hint: "Try odoo_find_models." });
+    await assert.rejects(tools[tool].handler(ARGS[tool], context(server.url)), (error) => {
+      assert.equal(error.code, code);
+      assert.deepEqual(error.details, {
+        field: "model",
+        reason: code,
+        hint: "Try odoo_find_models.",
+      });
+      return true;
+    });
+  }
+  next = refuse(400, "invalid_params", null);
+  await assert.rejects(tools.odoo_read.handler(ARGS.odoo_read, context(server.url)), (error) => {
+    assert.equal(error.details, undefined);
+    return true;
+  });
+  next = refuse(422, "query_error", {
+    sqlstate: "42703",
+    position: 8,
+    message: 'column "x" does not exist',
+    hint: "Name columns from odoo_describe_model.",
+  });
+  await assert.rejects(tools.odoo_sql.handler(ARGS.odoo_sql, context(server.url)), (error) => {
+    assert.deepEqual(error.details, {
+      hint: "Name columns from odoo_describe_model.",
+      sqlstate: "42703",
+      position: 8,
+      message: 'column "x" does not exist',
+    });
+    return true;
+  });
+});
+
+test("models pages with offset and describe reports how fields may be used", async (t) => {
+  let next = null;
+  const server = await fakeDataApi(t, () => next);
+  const { odoo_find_models: find, odoo_describe_model: describe } = okfToolPack.tools;
+  next = {
+    body: { result: { models: RESULTS.models, total: 120, truncated: true } },
+  };
+  assert.deepEqual(await find.handler({ query: "sale", offset: 50 }, context(server.url)), {
+    models: RESULTS.models,
+    total: 120,
+    truncated: true,
+  });
+  assert.deepEqual(server.requests[0].body.params, { query: "sale", offset: 50 });
+  next = { body: { result: RESULTS.models } };
+  assert.deepEqual(await find.handler({}, context(server.url)), { models: RESULTS.models });
+  await assert.rejects(find.handler({ offset: -1 }, context(server.url)), {
+    code: "invalid_arguments",
+  });
+  assert.deepEqual(Object.keys(find.outputSchema.properties), ["models", "total", "truncated"]);
+  assert.match(find.description, /page with offset/);
+  assert.match(find.description, /hr\.employee\.public next to hr\.employee/);
+  const flags = describe.outputSchema.properties.fields.items.properties;
+  for (const flag of ["stored", "searchable", "sortable", "groupable"]) {
+    assert.deepEqual(flags[flag], { type: "boolean" });
+  }
+  assert.match(describe.description, /searchable \(usable in a domain\)/);
+  for (const name of ["odoo_search", "odoo_group"]) {
+    assert.match(
+      okfToolPack.tools[name].description,
+      /Filter only on fields odoo_describe_model marks searchable/,
+    );
+  }
+  for (const name of ["odoo_describe_model", "odoo_search", "odoo_read", "odoo_group"]) {
+    assert.match(
+      okfToolPack.tools[name].description,
+      /details name the parameter \(field\), the reason and a hint/,
+    );
+  }
+});

@@ -11,6 +11,8 @@ const { OdooError, normalizeBaseUrl, postJson } = require("./odoo");
 const OPS = new Set(["models", "describe", "search", "read", "group", "sql"]);
 // PostgreSQL's own message about an SQL query, as the data API caps it.
 const MAX_SQL_MESSAGE = 500;
+// The host passes on detail strings of at most 200 characters.
+const MAX_DETAIL = 200;
 // Below the host's own per-call limit (30 s in okf-mcp), so the host hears
 // this pack's timeout rather than cutting the call off itself.
 const DEFAULT_TIMEOUT_MS = 25000;
@@ -69,36 +71,51 @@ class OdooToolError extends Error {
     if (details.field) {
       this.details = { field: details.field.split("/")[1] || null, path: details.field };
     }
-    if (details.sql) this.details = details.sql;
+    if (details.reply) this.details = details.reply;
     if (details.status) this.status = details.status;
   }
 }
 
-// PostgreSQL's answer to an SQL query (sql only): the data API passes it on
-// because the sandbox holds only rows the user may read, and an agent needs
-// it to correct its query. Reduced to a valid SQLSTATE, a 1-based position
-// and one line of at most 500 characters; a message holding the token or a
-// credential is dropped.
-function sqlErrorDetails(value, hidden) {
+function oneLine(value, max) {
+  return typeof value === "string"
+    ? value
+        .toWellFormed()
+        .replace(/[\p{Cc}\u2028\u2029]+/gu, " ")
+        .trim()
+        .slice(0, max) || null
+    : null;
+}
+
+// What an error answer explains, reduced to bounded scalars the host passes
+// on. Every operation may name the offending parameter, the reason and a
+// hint, all schema names and fixed texts. sql's query_error adds
+// PostgreSQL's answer (the sandbox holds only rows the user may read, and an
+// agent needs it to fix its query): a valid SQLSTATE, a 1-based position and
+// a message of at most 500 characters. A string holding the token or a
+// credential is dropped. Returns null when nothing remains.
+function errorDetails(value, op, code, hidden) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
-  const sqlstate =
-    typeof value.sqlstate === "string" && /^[0-9A-Z]{5}$/.test(value.sqlstate)
-      ? value.sqlstate
-      : null;
-  const position =
-    Number.isInteger(value.position) && value.position > 0 && value.position <= 1000000
-      ? value.position
-      : null;
-  let message =
-    typeof value.message === "string"
-      ? value.message
-          .toWellFormed()
-          .replace(/[\p{Cc}\u2028\u2029]+/gu, " ")
-          .trim()
-          .slice(0, MAX_SQL_MESSAGE)
-      : null;
-  if (!message || hidden.some((secret) => secret && message.includes(secret))) message = null;
-  return { sqlstate, position, message };
+  const clean = (text, max) => {
+    const line = oneLine(text, max);
+    return line && !hidden.some((secret) => secret && line.includes(secret)) ? line : null;
+  };
+  const details = {};
+  for (const key of ["field", "reason", "hint"]) {
+    const text = clean(value[key], MAX_DETAIL);
+    if (text) details[key] = text;
+  }
+  if (op === "sql" && code === "query_error") {
+    details.sqlstate =
+      typeof value.sqlstate === "string" && /^[0-9A-Z]{5}$/.test(value.sqlstate)
+        ? value.sqlstate
+        : null;
+    details.position =
+      Number.isInteger(value.position) && value.position > 0 && value.position <= 1000000
+        ? value.position
+        : null;
+    details.message = clean(value.message, MAX_SQL_MESSAGE);
+  }
+  return Object.keys(details).length ? details : null;
 }
 
 // RFC 6749 section 2.3.1: client id and secret are form-urlencoded before
@@ -173,17 +190,15 @@ async function callDataApi(options) {
     return body.result;
   }
   const code = CONTRACT_CODES.has(body?.error?.code) ? body.error.code : "server_error";
-  const sql =
-    op === "sql" && code === "query_error"
-      ? sqlErrorDetails(body.error.details, [token, clientId, clientSecret])
-      : null;
-  throw new OdooToolError(code, { status, ...(sql ? { sql } : {}) });
+  const explained = errorDetails(body.error.details, op, code, [token, clientId, clientSecret]);
+  throw new OdooToolError(code, { status, ...(explained ? { reply: explained } : {}) });
 }
 
 module.exports = {
   CONTRACT_CODES,
   DEFAULT_TIMEOUT_MS,
   MAX_RESPONSE_BYTES,
+  MAX_DETAIL,
   MAX_SQL_MESSAGE,
   OdooToolError,
   basicCredentials,
