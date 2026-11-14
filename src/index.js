@@ -5,4 +5,5 @@ module.exports = {
   ...require("./odoo"),
   ...require("./producer"),
   ...require("./render"),
+  ...require("./tool-pack"),
 };

@@ -336,4 +336,5 @@ module.exports = {
   callOdoo,
   createOdooClient,
   normalizeBaseUrl,
+  postJson: post,
 };
