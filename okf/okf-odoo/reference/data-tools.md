@@ -29,7 +29,8 @@ token, which exists only over HTTP, a tool fails with
 `subject_token_required`.
 
 Configuration: `url` (https, or http for a loopback host), `clientIdEnv` and
-`clientSecretEnv` (environment-variable names), optional `timeoutMs`.
+`clientSecretEnv` (environment-variable names), optional `timeoutMs` (25 s
+by default, which must stay below the host's own per-call limit).
 Arguments are checked against strict input schemas before a request; errors
 are bounded codes with fixed messages, and neither Odoo's text nor the token
 or credentials reach a result or an error.

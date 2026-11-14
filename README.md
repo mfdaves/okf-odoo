@@ -245,9 +245,13 @@ toolPacks:
 | `url` | required | Base URL of the Odoo server; `https`, or `http` for a loopback host only. |
 | `clientIdEnv` | required | Environment variable holding the resource-server client id. |
 | `clientSecretEnv` | required | Environment variable holding the resource-server client secret. |
-| `timeoutMs` | `30000` | Time limit per call, 1000 to 120000 ms. |
+| `timeoutMs` | `25000` | Time limit per call, 1000 to 120000 ms. Keep it below the host's own limit (okf-mcp: the `timeoutMs` of the `toolPacks` entry, 30 s by default), or the host answers `tool_pack_timeout` before the pack can report `timeout`. |
 
-Arguments are checked against each tool's input schema before any request.
+Every tool declares `requiresSubjectToken: true`, so the host lists it only
+where a signed-in user's token exists. Arguments are checked against each
+tool's input schema before any request; an `invalid_arguments` error carries
+`details.field` (the offending parameter) and `details.path` so an agent can
+correct its call.
 Errors are bounded codes with fixed messages: the data API's own
 (`invalid_params`, `invalid_client`, `invalid_token`, `insufficient_scope`,
 `access_denied`, `unknown_op`, `unknown_model`, `result_too_large`,

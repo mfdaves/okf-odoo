@@ -4,8 +4,10 @@
 // API v1, experimental): `okfToolPack = { apiVersion, id, validateConfig,
 // tools }`, tools keyed by name, each `{ description, annotations,
 // inputSchema, outputSchema, scope, handler(args, ctx) }` with
-// `ctx = { principal, subjectToken, config, getSecret, signal }`. If the host
-// changes that shape, only this file changes.
+// `ctx = { principal, subjectToken, config, getSecret, signal }`. Every tool
+// declares `requiresSubjectToken`, so the host hides it where no signed-in
+// user's token exists (stdio, unauthenticated HTTP). If the host changes that
+// shape, only this file changes.
 
 const { SCOPE, TOOLS, annotations, runTool, validateConfig } = require("./tools");
 
@@ -18,6 +20,7 @@ function createOdooToolPack(dependencies = {}) {
       inputSchema: tool.inputSchema,
       outputSchema: tool.outputSchema,
       scope: SCOPE,
+      requiresSubjectToken: true,
       // The principal is not needed: Odoo identifies the user by the token.
       handler: (args, ctx = {}) =>
         runTool(

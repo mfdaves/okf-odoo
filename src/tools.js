@@ -4,7 +4,7 @@
 // operation of the o3p_mcp data API. Host-independent; src/tool-pack.js
 // adapts them to the host's tool-pack interface.
 
-const { OdooToolError, callDataApi } = require("./data-api");
+const { DEFAULT_TIMEOUT_MS, OdooToolError, callDataApi } = require("./data-api");
 const { normalizeBaseUrl } = require("./odoo");
 const { violation } = require("./schema");
 
@@ -344,7 +344,7 @@ function validateConfig(value = {}) {
       "clientIdEnv and clientSecretEnv must differ.",
     );
   }
-  const timeoutMs = input.timeoutMs === undefined ? 30000 : input.timeoutMs;
+  const timeoutMs = input.timeoutMs === undefined ? DEFAULT_TIMEOUT_MS : input.timeoutMs;
   if (!Number.isInteger(timeoutMs) || timeoutMs < 1000 || timeoutMs > 120000) {
     report("invalid_timeout_ms", "timeoutMs", "timeoutMs must be an integer from 1000 to 120000.");
   }

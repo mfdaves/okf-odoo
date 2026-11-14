@@ -9,7 +9,9 @@
 const { OdooError, normalizeBaseUrl, postJson } = require("./odoo");
 
 const OPS = new Set(["models", "describe", "search", "read", "group"]);
-const DEFAULT_TIMEOUT_MS = 30000;
+// Below the host's own per-call limit (30 s in okf-mcp), so the host hears
+// this pack's timeout rather than cutting the call off itself.
+const DEFAULT_TIMEOUT_MS = 25000;
 // Odoo caps a result at 1 MB by default; this only bounds a misbehaving server.
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
 
@@ -56,7 +58,11 @@ class OdooToolError extends Error {
     super(MESSAGES[code] || MESSAGES.server_error);
     this.name = "OdooToolError";
     this.code = MESSAGES[code] ? code : "server_error";
-    if (details.field) this.field = details.field;
+    // `details` is what a host may pass on: bounded scalars naming the
+    // caller's own parameter, never a value. The HTTP status stays local.
+    if (details.field) {
+      this.details = { field: details.field.split("/")[1] || null, path: details.field };
+    }
     if (details.status) this.status = details.status;
   }
 }
@@ -138,6 +144,7 @@ async function callDataApi(options) {
 
 module.exports = {
   CONTRACT_CODES,
+  DEFAULT_TIMEOUT_MS,
   MAX_RESPONSE_BYTES,
   OdooToolError,
   basicCredentials,

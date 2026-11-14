@@ -113,6 +113,7 @@ test("the pack declares API v1, id odoo and five read-only odoo.read tools", () 
   for (const [name, tool] of Object.entries(okfToolPack.tools)) {
     assert.match(name, /^[a-z][a-z0-9_]{2,63}$/);
     assert.equal(tool.scope, "odoo.read");
+    assert.equal(tool.requiresSubjectToken, true);
     assert.equal(typeof tool.handler, "function");
     assert.equal(tool.inputSchema.type, "object");
     assert.equal(tool.inputSchema.additionalProperties, false);
@@ -328,6 +329,10 @@ test("without a subject token, valid arguments, config or credentials nothing is
   for (const [name, args] of invalid) {
     await assert.rejects(tools[name].handler(args, context(server.url)), (error) => {
       assert.equal(error.code, "invalid_arguments", `${name} ${JSON.stringify(args).slice(0, 80)}`);
+      // Only the parameter name and its position reach the host, as details.
+      assert.deepEqual(Object.keys(error.details), ["field", "path"]);
+      assert.ok(Object.values(error.details).every((value) => typeof value === "string"));
+      assert.equal(error.field, undefined);
       assert.doesNotMatch(JSON.stringify({ ...error, message: error.message }), /SENTINEL/);
       return true;
     });
@@ -358,7 +363,7 @@ test("validateConfig reports one diagnostic per invalid key without echoing it",
   };
   const valid = okfToolPack.validateConfig(base);
   assert.equal(valid.valid, true);
-  assert.deepEqual(valid.config, { ...base, url: "https://odoo.example.com", timeoutMs: 30000 });
+  assert.deepEqual(valid.config, { ...base, url: "https://odoo.example.com", timeoutMs: 25000 });
   assert.equal(okfToolPack.validateConfig(valid.config).valid, true, "normalised config is valid");
   const cases = [
     [{ ...base, url: undefined }, "missing_url", "url"],
@@ -450,4 +455,40 @@ test("a four-field path and every allowed aggregate pass the schema", async (t) 
     context(server.url),
   );
   assert.equal(server.requests.length, 2);
+});
+
+test("an argument error names the offending parameter in details, never a status", async (t) => {
+  const server = await fakeDataApi(t, () => ({
+    status: 400,
+    body: { error: { code: "invalid_params", message: "SENTINEL" } },
+  }));
+  await assert.rejects(
+    okfToolPack.tools.odoo_search.handler(
+      { ...ARGS.odoo_search, domain: [["state", "drop", 1]] },
+      context(server.url),
+    ),
+    (error) => {
+      assert.deepEqual(error.details, { field: "domain", path: "/domain/0" });
+      return true;
+    },
+  );
+  await assert.rejects(
+    okfToolPack.tools.odoo_search.handler({ ...ARGS.odoo_search, extra: 1 }, context(server.url)),
+    (error) => {
+      assert.deepEqual(error.details, {
+        field: "(unexpected property)",
+        path: "/(unexpected property)",
+      });
+      return true;
+    },
+  );
+  await assert.rejects(
+    okfToolPack.tools.odoo_search.handler(ARGS.odoo_search, context(server.url)),
+    (error) => {
+      assert.equal(error.code, "invalid_params");
+      assert.equal(error.details, undefined);
+      assert.equal(error.status, 400);
+      return true;
+    },
+  );
 });
