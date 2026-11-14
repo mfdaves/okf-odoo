@@ -131,6 +131,14 @@ test("the pack declares API v1, id odoo and five read-only odoo.read tools", () 
   assert.match(group.description, /"__count"/);
   assert.match(group.description, /only the records the user may read/);
   assert.match(read.description, /odoo_describe_model/);
+  assert.match(read.description, /silently left out/);
+  assert.match(search.description, /at most 4 fields/);
+  assert.match(group.description, /at most 4 fields/);
+  assert.match(group.description, /\[id, display name\], a date bucket as \[start, label\]/);
+  assert.doesNotMatch(
+    group.description + JSON.stringify(group.inputSchema),
+    /bool_and|bool_or|array_agg/,
+  );
 });
 
 test("each tool posts its operation with Basic client credentials and the subject token", async (t) => {
@@ -307,6 +315,13 @@ test("without a subject token, valid arguments, config or credentials nothing is
     ["odoo_read", { ...ARGS.odoo_read, ids: Array.from({ length: 101 }, (_, i) => i + 1) }],
     ["odoo_read", { ...ARGS.odoo_read, ids: [0] }],
     ["odoo_group", { ...ARGS.odoo_group, aggregates: ["amount_total:median"] }],
+    ["odoo_group", { ...ARGS.odoo_group, aggregates: ["is_company:bool_and"] }],
+    ["odoo_group", { ...ARGS.odoo_group, aggregates: ["is_company:bool_or"] }],
+    ["odoo_group", { ...ARGS.odoo_group, aggregates: ["name:array_agg"] }],
+    ["odoo_group", { ...ARGS.odoo_group, order: "amount_total:sum desc; drop" }],
+    ["odoo_search", { ...ARGS.odoo_search, domain: [["a.b.c.d.e", "=", 1]] }],
+    ["odoo_search", { ...ARGS.odoo_search, order: "partner_id.name desc" }],
+    ["odoo_search", { ...ARGS.odoo_search, order: "amount_total:sum" }],
     ["odoo_group", { ...ARGS.odoo_group, limit: 501 }],
     ["odoo_group", { ...ARGS.odoo_group, groupby: ["date_order:decade"] }],
   ];
@@ -408,4 +423,31 @@ test("no sentinel reaches the console on any path", async (t) => {
   assert.equal(outcomes.filter((outcome) => outcome.code).length, 1);
   assert.doesNotMatch(JSON.stringify(outcomes), /SENTINEL|secret\/\+/);
   assert.doesNotMatch(written.join("\n"), /SENTINEL|secret\/\+/);
+});
+
+test("a four-field path and every allowed aggregate pass the schema", async (t) => {
+  const server = await fakeDataApi(t, ({ url }) => ({
+    body: { result: RESULTS[url.split("/").pop()] },
+  }));
+  await okfToolPack.tools.odoo_search.handler(
+    { ...ARGS.odoo_search, domain: [["partner_id.country_id.currency_id.name", "=", "EUR"]] },
+    context(server.url),
+  );
+  await okfToolPack.tools.odoo_group.handler(
+    {
+      ...ARGS.odoo_group,
+      aggregates: [
+        "amount_total:sum",
+        "amount_total:avg",
+        "amount_total:min",
+        "amount_total:max",
+        "partner_id:count",
+        "partner_id:count_distinct",
+        "__count",
+      ],
+      order: "__count desc, partner_id",
+    },
+    context(server.url),
+  );
+  assert.equal(server.requests.length, 2);
 });

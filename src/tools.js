@@ -51,7 +51,7 @@ const DOMAIN = {
   type: "array",
   maxItems: 100,
   description:
-    'Odoo domain: a list of [field, operator, value] conditions, all of which must hold. Put "|" before two conditions for OR, "!" before one for NOT. A field may follow relations with dots (partner_id.country_id.code).',
+    'Odoo domain: a list of [field, operator, value] conditions, all of which must hold. Put "|" before two conditions for OR, "!" before one for NOT. A field may follow relations with dots, at most 4 fields long (partner_id.country_id.code).',
   items: {
     anyOf: [
       { type: "string", enum: ["&", "|", "!"] },
@@ -60,7 +60,12 @@ const DOMAIN = {
         minItems: 3,
         maxItems: 3,
         prefixItems: [
-          { type: "string", pattern: "^[a-z_][a-z0-9_]*(\\.[a-z_][a-z0-9_]*)*$", maxLength: 256 },
+          // At most 4 hops: the data API refuses longer paths.
+          {
+            type: "string",
+            pattern: "^[a-z_][a-z0-9_]*(\\.[a-z_][a-z0-9_]*){0,3}$",
+            maxLength: 256,
+          },
           { type: "string", enum: OPERATORS },
           {},
         ],
@@ -68,12 +73,21 @@ const DOMAIN = {
     ],
   },
 };
-const ORDER = {
+// Sort orders as the data API accepts them: fields of the model for search,
+// groupby fields, aggregates or __count for group.
+const ORDER_ITEM = "( (asc|desc|ASC|DESC))?";
+const SEARCH_ORDER = {
   type: "string",
   maxLength: 200,
-  pattern:
-    "^[a-z_][a-z0-9_.:]*( (asc|desc|ASC|DESC))?(, ?[a-z_][a-z0-9_.:]*( (asc|desc|ASC|DESC))?){0,9}$",
-  description: 'Sort order, for example "date desc, id".',
+  pattern: `^[a-z_][a-z0-9_]*${ORDER_ITEM}(, ?[a-z_][a-z0-9_]*${ORDER_ITEM}){0,9}$`,
+  description: 'Sort order on fields of the model, for example "date desc, id".',
+};
+const GROUP_KEY = "(__count|[a-z_][a-z0-9_]*(:[a-z_]+)?)";
+const GROUP_ORDER = {
+  type: "string",
+  maxLength: 200,
+  pattern: `^${GROUP_KEY}${ORDER_ITEM}(, ?${GROUP_KEY}${ORDER_ITEM}){0,9}$`,
+  description: 'Sort order on groupby or aggregate items, for example "amount_total:sum desc".',
 };
 const RECORDS = { type: "array", items: { type: "object" } };
 
@@ -163,7 +177,7 @@ const TOOLS = [
       "Search records of one Odoo model and return the requested fields of each.",
       LOOK_UP_FIRST,
       'The domain is a list of [field, operator, value] conditions that must all hold; put "|" before two conditions for OR. Examples: [["state", "=", "done"], ["date", ">=", "2026-01-01"]] and ["|", ["name", "ilike", "chair"], ["default_code", "=", "A100"]].',
-      "Operators: =, !=, >, >=, <, <=, in, not in, like, ilike, not ilike, =like, =ilike, child_of, parent_of, any. A many2one value comes back as [id, display name].",
+      "Operators: =, !=, >, >=, <, <=, in, not in, like, ilike, not ilike, =like, =ilike, child_of, parent_of, any. A field path follows at most 4 fields (partner_id.country_id.code). A many2one value comes back as [id, display name].",
       "count is the number of matching records; truncated is true when more exist than limit (at most 200); page with offset. For totals use odoo_group instead of adding up pages.",
       RIGHTS,
     ].join(" "),
@@ -172,7 +186,7 @@ const TOOLS = [
         model: MODEL,
         domain: DOMAIN,
         fields: FIELDS,
-        order: ORDER,
+        order: SEARCH_ORDER,
         limit: {
           type: "integer",
           minimum: 1,
@@ -202,7 +216,7 @@ const TOOLS = [
     description: [
       "Read the requested fields of Odoo records by id (at most 100), for example ids returned by odoo_search or the id in a many2one value [id, display name].",
       LOOK_UP_FIRST,
-      "Records the signed-in user may not read are not returned.",
+      "Ids that do not exist and records the signed-in user may not read are silently left out, so fewer records than ids may come back.",
     ].join(" "),
     inputSchema: objectSchema(
       {
@@ -233,8 +247,9 @@ const TOOLS = [
     description: [
       "Group the records of one Odoo model and compute totals, like a pivot table.",
       LOOK_UP_FIRST,
-      'groupby lists fields; a date field takes a granularity: "date:month" (day, week, month, quarter, year). aggregates are written "field:function" with sum, avg, min, max or count_distinct, and "__count" counts records. Example: groupby ["partner_id"], aggregates ["amount_total:sum", "__count"], order "amount_total:sum desc".',
-      "The domain has the same syntax as in odoo_search. At most 500 groups.",
+      'groupby lists fields; a date field needs a granularity: "date:month" (day, week, month, quarter, year, or hour for date-times). aggregates are written "field:function": sum, avg, min or max on numeric fields, count or count_distinct on stored fields, and "__count" counts records. Example: groupby ["partner_id"], aggregates ["amount_total:sum", "__count"], order "amount_total:sum desc".',
+      "Each group carries its groupby values and aggregates: a relation as [id, display name], a date bucket as [start, label].",
+      "The domain has the same syntax as in odoo_search, with paths of at most 4 fields. At most 500 groups.",
       `${RIGHTS} Totals therefore cover only the records the user may read.`,
     ].join(" "),
     inputSchema: objectSchema(
@@ -256,15 +271,14 @@ const TOOLS = [
           type: "array",
           items: {
             type: "string",
-            pattern:
-              "^(__count|[a-z_][a-z0-9_]*:(sum|avg|min|max|count|count_distinct|bool_and|bool_or|array_agg))$",
+            pattern: "^(__count|[a-z_][a-z0-9_]*:(sum|avg|min|max|count|count_distinct))$",
             maxLength: 160,
           },
           minItems: 1,
           maxItems: 20,
           description: 'Totals to compute, for example ["amount_total:sum", "__count"].',
         },
-        order: ORDER,
+        order: GROUP_ORDER,
         limit: {
           type: "integer",
           minimum: 1,
