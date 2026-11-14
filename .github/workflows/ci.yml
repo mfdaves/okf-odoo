@@ -55,3 +55,57 @@ jobs:
         working-directory: okf-odoo
       - run: npm run pack:check
         working-directory: okf-odoo
+
+  odoo:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        odoo: ["19", "20"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: okf-odoo
+      - uses: actions/checkout@v6
+        with:
+          repository: mfdaves/okf-mcp
+          path: okf-mcp
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+          cache-dependency-path: |
+            okf-odoo/package-lock.json
+            okf-mcp/package-lock.json
+      - run: npm ci
+        working-directory: okf-mcp
+      - run: npm ci
+        working-directory: okf-odoo
+      # Odoo and its Postgres 17 run as one compose project: the database is
+      # initialised with base and sale, and the API keys are created through
+      # `odoo shell`, which a service container cannot do.
+      - name: Start Odoo ${{ matrix.odoo }}
+        working-directory: okf-odoo
+        run: |
+          scripts/live-odoo.sh up "${{ matrix.odoo }}" > "${RUNNER_TEMP}/odoo.env"
+          while IFS='=' read -r name value; do
+            case "${name}" in
+              *API_KEY) echo "::add-mask::${value}" ;;
+            esac
+          done < "${RUNNER_TEMP}/odoo.env"
+          cat "${RUNNER_TEMP}/odoo.env" >> "${GITHUB_ENV}"
+      # The replay tests cannot see what a live server returns, so the server is
+      # the oracle for the recorded fixtures of the same major version.
+      - run: npm run live:shape
+        working-directory: okf-odoo
+        env:
+          OKF_ODOO_LIVE_TEST: "1"
+      - run: npm run live:smoke
+        working-directory: okf-odoo
+        env:
+          OKF_ODOO_LIVE_TEST: "1"
+      - name: Stop Odoo
+        if: always()
+        working-directory: okf-odoo
+        run: scripts/live-odoo.sh down
