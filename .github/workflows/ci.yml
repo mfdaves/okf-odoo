@@ -51,5 +51,7 @@ jobs:
         working-directory: okf-odoo
       - run: npm run self:validate
         working-directory: okf-odoo
+      - run: npm run smoke
+        working-directory: okf-odoo
       - run: npm run pack:check
         working-directory: okf-odoo
