@@ -14,15 +14,11 @@ const path = require("node:path");
 const { spawnSync } = require("node:child_process");
 const { CatalogError } = require("../src/catalog");
 const { generateOdoo } = require("../src/producer");
+const yaml = require("js-yaml");
+const { liveConnection, required } = require("../test/support/live");
 const { MCP_CLI, PROJECT_RELATION_TYPES } = require("../test/support/okf-mcp");
 
 const REPOSITORY = path.resolve(__dirname, "..");
-
-function required(name) {
-  const value = process.env[name];
-  if (!value) throw new Error(`${name} is required; start the server with scripts/live-odoo.sh.`);
-  return value;
-}
 
 function okf(projectPath, args, env) {
   const started = process.hrtime.bigint();
@@ -41,59 +37,82 @@ function okf(projectPath, args, env) {
   return { status: run.status, receipt, stderr: run.stderr, seconds };
 }
 
-function projectYaml(url, database) {
-  return [
-    "project: Odoo live smoke",
-    "bundles:",
-    "  - id: erp",
-    "    root: okf/erp",
-    "relationTypes:",
-    ...PROJECT_RELATION_TYPES.map((type) => `  - ${type}`),
-    "producers:",
-    "  - name: odoo",
-    "    type: odoo",
-    "    package: '@mfdaves/okf-odoo'",
-    "    bundle: erp",
-    "    config:",
-    `      url: ${url}`,
-    `      database: ${database}`,
-    "      apiKeyEnv: ODOO_API_KEY",
-    "      source: live-odoo",
-    "      sections: [modules, models, access, groups, menus, crons, reports, serverActions]",
-    "",
-  ].join("\n");
+function projectYaml(connection) {
+  return yaml.dump({
+    project: "Odoo live smoke",
+    bundles: [{ id: "erp", root: "okf/erp" }],
+    relationTypes: PROJECT_RELATION_TYPES,
+    producers: [
+      {
+        name: "odoo",
+        type: "odoo",
+        package: "@mfdaves/okf-odoo",
+        bundle: "erp",
+        config: {
+          ...connection,
+          apiKeyEnv: "ODOO_API_KEY",
+          source: "live-odoo",
+          sections: [
+            "modules",
+            "models",
+            "access",
+            "groups",
+            "menus",
+            "crons",
+            "reports",
+            "serverActions",
+          ],
+        },
+      },
+    ],
+  });
 }
 
 function read(bundleRoot, file) {
   return fs.readFileSync(path.join(bundleRoot, file), "utf8");
 }
 
-async function limitedKeyFailsOnItsSection(url, database) {
+// What a key of an Access Rights manager (group_erp_manager) can read, per
+// section, measured here and documented in the README. On Odoo 18 the module
+// dependencies need Settings as well.
+const LIMITED_KEY_DENIED = {
+  18: ["modules", "menus", "crons", "serverActions"],
+  19: ["menus", "crons", "serverActions"],
+  20: ["menus", "crons", "serverActions"],
+};
+const MODEL_SECTIONS = ["access", "crons", "reports", "serverActions"];
+
+async function limitedKeySections(version) {
   const limitedKey = process.env.OKF_ODOO_LIMITED_API_KEY;
   if (!limitedKey) return null;
-  const context = (sections) => ({
-    bundleId: "erp",
-    config: { url, database, apiKeyEnv: "ODOO_API_KEY", source: "live-odoo", sections },
-    getSecret: () => limitedKey,
-  });
-  // Access Rights (group_erp_manager) can read everything but menus, jobs and
-  // server actions; menus are the first of those in reading order.
-  await assert.rejects(generateOdoo(context(undefined)), (error) => {
-    assert.ok(error instanceof CatalogError, String(error));
-    assert.equal(error.code, "access_denied");
-    assert.equal(error.section, "menus");
-    return true;
-  });
-  for (const section of ["crons", "serverActions"]) {
-    await assert.rejects(
-      generateOdoo(context(["models", section])),
-      (error) => error.code === "access_denied" && error.section === section,
-    );
+  const connection = liveConnection("OKF_ODOO_LIMITED_LOGIN");
+  const denied = [];
+  for (const section of [
+    "modules",
+    "models",
+    "access",
+    "groups",
+    "menus",
+    "crons",
+    "reports",
+    "serverActions",
+  ]) {
+    const sections = MODEL_SECTIONS.includes(section) ? ["models", section] : [section];
+    try {
+      await generateOdoo({
+        bundleId: "erp",
+        config: { ...connection, apiKeyEnv: "ODOO_API_KEY", source: "live-odoo", sections },
+        getSecret: () => limitedKey,
+      });
+    } catch (error) {
+      assert.ok(error instanceof CatalogError, String(error));
+      assert.equal(error.code, "access_denied");
+      assert.equal(error.section, section);
+      denied.push(section);
+    }
   }
-  const readable = await generateOdoo(
-    context(["modules", "models", "access", "groups", "reports"]),
-  );
-  return readable.summary;
+  assert.deepEqual(denied, LIMITED_KEY_DENIED[version]);
+  return denied;
 }
 
 async function liveSmoke() {
@@ -102,8 +121,8 @@ async function liveSmoke() {
       "Set OKF_ODOO_LIVE_TEST=1 to read the disposable Odoo of scripts/live-odoo.sh.",
     );
   }
-  const url = required("OKF_ODOO_URL");
-  const database = required("OKF_ODOO_DATABASE");
+  const connection = liveConnection();
+  const { url } = connection;
   const apiKey = required("OKF_ODOO_API_KEY");
   const version = required("OKF_ODOO_VERSION");
   if (!fs.existsSync(MCP_CLI))
@@ -117,7 +136,7 @@ async function liveSmoke() {
     const bundleRoot = path.join(root, "okf", "erp");
     fs.mkdirSync(bundleRoot, { recursive: true });
     const projectPath = path.join(root, "okf.project.yaml");
-    fs.writeFileSync(projectPath, projectYaml(url, database), "utf8");
+    fs.writeFileSync(projectPath, projectYaml(connection), "utf8");
     const env = { ODOO_API_KEY: apiKey };
 
     const preview = okf(projectPath, ["producer", "preview", "odoo"], env);
@@ -158,7 +177,7 @@ async function liveSmoke() {
       }
     }
 
-    const limited = await limitedKeyFailsOnItsSection(url, database);
+    const limited = await limitedKeySections(version);
     process.stdout.write(
       `${JSON.stringify(
         {
@@ -168,7 +187,8 @@ async function liveSmoke() {
           secondRun: { counts: second.receipt.counts, seconds: Number(second.seconds.toFixed(2)) },
           previewSeconds: Number(preview.seconds.toFixed(2)),
           validated: true,
-          limitedKey: limited,
+          api: connection.api || "json2",
+          limitedKeyDenied: limited,
         },
         null,
         2,

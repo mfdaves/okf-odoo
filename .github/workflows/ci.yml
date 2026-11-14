@@ -62,7 +62,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        odoo: ["19", "20"]
+        odoo: ["18", "19", "20"]
     steps:
       - uses: actions/checkout@v6
         with:
@@ -84,7 +84,8 @@ jobs:
         working-directory: okf-odoo
       # Odoo and its Postgres 17 run as one compose project: the database is
       # initialised with base and sale, and the API keys are created through
-      # `odoo shell`, which a service container cannot do.
+      # `odoo shell`, which a service container cannot do. The script also
+      # exports the protocol: JSON-RPC for Odoo 18, JSON-2 for 19 and 20.
       - name: Start Odoo ${{ matrix.odoo }}
         working-directory: okf-odoo
         run: |
