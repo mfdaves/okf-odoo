@@ -97,6 +97,16 @@ for (const version of VERSIONS) {
         ? /Kind: model or abstract model \(Odoo 18 does not record which\)/
         : /Kind: model\n/;
     assert.match(team, kind);
+    // x2many fields have no column, whatever ir.model.fields says about storing them.
+    assert.match(
+      team,
+      /\| `crm_team_member_ids` \|[^\n]*\| not stored \(no column\), not groupable \|/,
+    );
+    assert.match(
+      team,
+      /\| `dashboard_button_name` \|[^\n]*not stored, not searchable, not groupable/,
+    );
+    assert.match(team, /\| `user_id` \|[^\n]*\| stored, on delete set null \|/);
     const manager = files.get("groups/sales_team.group_sale_manager.md");
     assert.match(manager, version === "18" ? /- Application: Sales/ : /- Privilege: Sales/);
     assert.deepEqual(frontmatter(files.get("index.md")), { okf_version: "0.2" });
@@ -198,6 +208,7 @@ function syntheticCatalog() {
             help: "Line one\nline two <b> [see](elsewhere.md)",
             custom: false,
             companyDependent: false,
+            searchable: true,
             onDelete: null,
             modules: ["x_shop"],
             groups: [{ key: "x_shop.group_manager", name: "Shop / Manager" }],
@@ -221,6 +232,7 @@ function syntheticCatalog() {
             help: null,
             custom: true,
             companyDependent: true,
+            searchable: false,
             onDelete: "set null",
             modules: [],
             groups: [],
@@ -325,7 +337,14 @@ test("rendering covers every section and escapes untrusted text", () => {
   assert.match(order, /\| Line one line two \\<b> \\\[see\\\]\(elsewhere\.md\) \|/);
   assert.match(order, /groups: \[Shop \/ Manager\]\(\.\.\/groups\/x_shop\.group_manager\.md\)/);
   assert.match(order, /\| `x_manual` \|/);
-  assert.match(order, /translated \(standard\).*company-dependent.*on delete set null, custom/);
+  assert.match(
+    order,
+    /stored, not searchable, translated \(standard\).*company-dependent.*on delete set null, custom/,
+  );
+  assert.match(
+    order,
+    /follow from how a field is stored; odoo_describe_model gives the exact flags/,
+  );
   assert.match(order, /### `state`\n\n- `draft` — Draft\n- `done` — Done/);
   assert.match(order, /\| restriction \| everyone \| read \| `\[\('user_id', '=', uid\)\]` \|/);
   assert.match(order, /permission \| \[Shop \/ Manager\].* \| create, read, update, delete \| —/);

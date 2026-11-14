@@ -164,6 +164,14 @@ apps/<xmlid>.md          a top-level menu, its submenus and the models they open
 .okf-producer.json       written by the host: owned paths and digests
 ```
 
+The properties column of a field table marks one2many and many2many fields
+as "not stored (no column)", although Odoo reflects them as stored, and adds
+"not searchable" for a field that is neither stored nor has a search method
+(`ir.model.fields.selectable`) and "not groupable" for a one2many or a field
+that is neither stored nor related. These hints follow from the metadata;
+on Odoo 20 a field computed in SQL may still be searched and grouped, and
+the data tools' `odoo_describe_model` reports the exact flags for a user.
+
 Field-level groups come from `ir.model.fields.groups`. Odoo 20 records them
 for every field; Odoo 18 and 19 leave them empty for fields defined in code,
 so on those versions each model concept states that field groups are not

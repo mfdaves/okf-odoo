@@ -216,7 +216,17 @@ class Renderer {
     return [
       field.required ? "required" : null,
       field.readonly ? "read-only" : null,
-      field.stored ? "stored" : "not stored",
+      // A one2many is read through its inverse field and a many2many through
+      // a relation table: neither has a column, whatever ir.model.fields says.
+      field.type === "one2many" || field.type === "many2many"
+        ? "not stored (no column)"
+        : field.stored
+          ? "stored"
+          : "not stored",
+      field.searchable ? null : "not searchable",
+      field.type === "one2many" || (!field.stored && !field.related && field.type !== "many2many")
+        ? "not groupable"
+        : null,
       field.index
         ? field.index === "indexed"
           ? "indexed"
@@ -277,6 +287,7 @@ class Renderer {
       this.catalog.fieldGroups === false
         ? `Field groups are not available on Odoo ${this.catalog.odooVersion}: it does not record which groups may access a field defined in code, so this table cannot show field-level restrictions.\n`
         : null,
+      `"not searchable" and "not groupable" follow from how a field is stored; odoo_describe_model gives the exact flags for the signed-in user.${this.catalog.odooVersion === "20" ? " On Odoo 20 a field computed in SQL may be searched and grouped even where marked otherwise." : ""}\n`,
       table(
         ["Field", "Label", "Type", "Relation", "Properties", "Modules", "Help"],
         fieldRows,

@@ -43,6 +43,8 @@ relations:
 
 ## Fields
 
+"not searchable" and "not groupable" follow from how a field is stored; odoo_describe_model gives the exact flags for the signed-in user. On Odoo 20 a field computed in SQL may be searched and grouped even where marked otherwise.
+
 | Field | Label | Type | Relation | Properties | Modules | Help |
 | --- | --- | --- | --- | --- | --- | --- |
 | `active` | Active | `boolean` | — | stored | [sales_team](../modules/sales_team.md) | If the active field is set to false, it will allow you to hide the Sales Team without removing it. |
@@ -50,31 +52,31 @@ relations:
 | `company_id` | Company | `many2one` | `res.company` | stored, indexed (btree), on delete set null | [sales_team](../modules/sales_team.md) | — |
 | `create_date` | Created on | `datetime` | — | read-only, stored | [sales_team](../modules/sales_team.md) | — |
 | `create_uid` | Created by | `many2one` | [res.users](res.users.md) | read-only, stored, on delete set null | [sales_team](../modules/sales_team.md) | — |
-| `crm_team_member_all_ids` | Sales Team Members (incl. inactive) | `one2many` | [crm.team.member](crm.team.member.md) (`crm_team_id`) | stored | [sales_team](../modules/sales_team.md) | — |
-| `crm_team_member_ids` | Sales Team Members | `one2many` | [crm.team.member](crm.team.member.md) (`crm_team_id`) | stored | [sales_team](../modules/sales_team.md) | Add members to automatically assign their documents to this sales team. |
+| `crm_team_member_all_ids` | Sales Team Members (incl. inactive) | `one2many` | [crm.team.member](crm.team.member.md) (`crm_team_id`) | not stored (no column), not groupable | [sales_team](../modules/sales_team.md) | — |
+| `crm_team_member_ids` | Sales Team Members | `one2many` | [crm.team.member](crm.team.member.md) (`crm_team_id`) | not stored (no column), not groupable | [sales_team](../modules/sales_team.md) | Add members to automatically assign their documents to this sales team. |
 | `currency_id` | Currency | `many2one` | `res.currency` | read-only, not stored, related to `company_id.currency_id` | [sales_team](../modules/sales_team.md) | — |
-| `dashboard_button_name` | Dashboard Button | `char` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | — |
-| `display_name` | Display Name | `char` | — | read-only, not stored | [sale](../modules/sale.md), [sales_team](../modules/sales_team.md) | — |
-| `favorite_user_ids` | Favorite Members | `many2many` | [res.users](res.users.md) | stored | [sales_team](../modules/sales_team.md) | — |
-| `has_message` | Has Message | `boolean` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | — |
+| `dashboard_button_name` | Dashboard Button | `char` | — | read-only, not stored, not searchable, not groupable | [sales_team](../modules/sales_team.md) | — |
+| `display_name` | Display Name | `char` | — | read-only, not stored, not groupable | [sale](../modules/sale.md), [sales_team](../modules/sales_team.md) | — |
+| `favorite_user_ids` | Favorite Members | `many2many` | [res.users](res.users.md) | not stored (no column) | [sales_team](../modules/sales_team.md) | — |
+| `has_message` | Has Message | `boolean` | — | read-only, not stored, not groupable | [sales_team](../modules/sales_team.md) | — |
 | `id` | ID | `integer` | — | read-only, stored | [sale](../modules/sale.md), [sales_team](../modules/sales_team.md) | — |
-| `is_favorite` | Show on dashboard | `boolean` | — | not stored | [sales_team](../modules/sales_team.md) | Favorite teams to display them in the dashboard and access them easily. |
-| `is_membership_multi` | Multiple Memberships Allowed | `boolean` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | If True, users may belong to several sales teams. Otherwise membership is limited to a single sales team. |
-| `member_company_ids` | Member Company | `many2many` | `res.company` | read-only, not stored | [sales_team](../modules/sales_team.md) | UX: Limit to team company or all if no company |
-| `member_ids` | Salespersons | `many2many` | [res.users](res.users.md) | not stored | [sales_team](../modules/sales_team.md) | Users assigned to this team. |
-| `member_warning` | Membership Issue Warning | `text` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | — |
-| `message_attachment_count` | Attachment Count | `integer` | — | read-only, not stored, groups: [Role / User](../groups/base.group_user.md) | [sales_team](../modules/sales_team.md) | — |
-| `message_follower_ids` | Followers | `one2many` | `mail.followers` (`res_id`) | stored, groups: [Role / User](../groups/base.group_user.md) | [sales_team](../modules/sales_team.md) | — |
-| `message_has_error` | Message Delivery error | `boolean` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | If checked, some messages have a delivery error. |
-| `message_has_error_counter` | Number of errors | `integer` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | Number of messages with delivery error |
-| `message_has_sms_error` | SMS Delivery error | `boolean` | — | read-only, not stored | [sms](../modules/sms.md) | If checked, some messages have a delivery error. |
-| `message_ids` | Messages | `one2many` | `mail.message` (`res_id`) | stored | [sales_team](../modules/sales_team.md) | — |
-| `message_is_follower` | Is Follower | `boolean` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | — |
-| `message_needaction` | Action Needed | `boolean` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | If checked, new messages require your attention. |
-| `message_needaction_counter` | Number of Actions | `integer` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | Number of messages requiring action |
-| `message_partner_ids` | Followers (Partners) | `many2many` | `res.partner` | not stored | [sales_team](../modules/sales_team.md) | — |
+| `is_favorite` | Show on dashboard | `boolean` | — | not stored, not searchable, not groupable | [sales_team](../modules/sales_team.md) | Favorite teams to display them in the dashboard and access them easily. |
+| `is_membership_multi` | Multiple Memberships Allowed | `boolean` | — | read-only, not stored, not searchable, not groupable | [sales_team](../modules/sales_team.md) | If True, users may belong to several sales teams. Otherwise membership is limited to a single sales team. |
+| `member_company_ids` | Member Company | `many2many` | `res.company` | read-only, not stored (no column), not searchable | [sales_team](../modules/sales_team.md) | UX: Limit to team company or all if no company |
+| `member_ids` | Salespersons | `many2many` | [res.users](res.users.md) | not stored (no column) | [sales_team](../modules/sales_team.md) | Users assigned to this team. |
+| `member_warning` | Membership Issue Warning | `text` | — | read-only, not stored, not searchable, not groupable | [sales_team](../modules/sales_team.md) | — |
+| `message_attachment_count` | Attachment Count | `integer` | — | read-only, not stored, not searchable, not groupable, groups: [Role / User](../groups/base.group_user.md) | [sales_team](../modules/sales_team.md) | — |
+| `message_follower_ids` | Followers | `one2many` | `mail.followers` (`res_id`) | not stored (no column), not groupable, groups: [Role / User](../groups/base.group_user.md) | [sales_team](../modules/sales_team.md) | — |
+| `message_has_error` | Message Delivery error | `boolean` | — | read-only, not stored, not groupable | [sales_team](../modules/sales_team.md) | If checked, some messages have a delivery error. |
+| `message_has_error_counter` | Number of errors | `integer` | — | read-only, not stored, not searchable, not groupable | [sales_team](../modules/sales_team.md) | Number of messages with delivery error |
+| `message_has_sms_error` | SMS Delivery error | `boolean` | — | read-only, not stored, not groupable | [sms](../modules/sms.md) | If checked, some messages have a delivery error. |
+| `message_ids` | Messages | `one2many` | `mail.message` (`res_id`) | not stored (no column), not groupable | [sales_team](../modules/sales_team.md) | — |
+| `message_is_follower` | Is Follower | `boolean` | — | read-only, not stored, not groupable | [sales_team](../modules/sales_team.md) | — |
+| `message_needaction` | Action Needed | `boolean` | — | read-only, not stored, not groupable | [sales_team](../modules/sales_team.md) | If checked, new messages require your attention. |
+| `message_needaction_counter` | Number of Actions | `integer` | — | read-only, not stored, not searchable, not groupable | [sales_team](../modules/sales_team.md) | Number of messages requiring action |
+| `message_partner_ids` | Followers (Partners) | `many2many` | `res.partner` | not stored (no column) | [sales_team](../modules/sales_team.md) | — |
 | `name` | Sales Team | `char` | — | required, stored, translated (standard) | [sales_team](../modules/sales_team.md) | — |
-| `sale_order_count` | \# Sale Orders | `integer` | — | read-only, not stored | [sale](../modules/sale.md) | — |
+| `sale_order_count` | \# Sale Orders | `integer` | — | read-only, not stored, not searchable, not groupable | [sale](../modules/sale.md) | — |
 | `sequence` | Sequence | `integer` | — | stored | [sales_team](../modules/sales_team.md) | — |
 | `user_id` | Team Leader | `many2one` | [res.users](res.users.md) | stored, on delete set null | [sales_team](../modules/sales_team.md) | — |
 | `write_date` | Last Updated on | `datetime` | — | read-only, stored | [sales_team](../modules/sales_team.md) | — |

@@ -56,6 +56,7 @@ const BASE_FIELDS = Object.freeze({
     "groups",
     "company_dependent",
     "on_delete",
+    "selectable",
   ],
   "ir.model.fields.selection": ["field_id", "value", "name", "sequence"],
   "ir.access": ["name", "model_id", "group_id", "operation", "domain", "kind"],
@@ -439,6 +440,8 @@ async function readCatalog(client, options = {}) {
           help: text(row.help),
           custom: row.state === "manual",
           companyDependent: row.company_dependent === true,
+          // Odoo reflects "stored or has a search method" as selectable.
+          searchable: row.selectable === true,
           onDelete: text(row.on_delete),
           modules: moduleList(row.modules),
           groups: await groupRefs(row.groups),
