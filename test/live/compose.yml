@@ -1,0 +1,33 @@
+# A disposable Odoo for the live gate. Select the image and host port with
+# OKF_ODOO_IMAGE and OKF_ODOO_PORT; scripts/live-odoo.sh drives it.
+services:
+  db:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: odoo
+      POSTGRES_PASSWORD: odoo
+      POSTGRES_DB: postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U odoo -d postgres"]
+      interval: 2s
+      timeout: 5s
+      retries: 30
+
+  odoo:
+    image: ${OKF_ODOO_IMAGE:-odoo:19.0}
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      HOST: db
+      USER: odoo
+      PASSWORD: odoo
+    volumes:
+      - filestore:/var/lib/odoo
+    ports:
+      - "127.0.0.1:${OKF_ODOO_PORT:-18069}:8069"
+    # No cron threads: scheduled jobs would otherwise change while the gate reads.
+    command: ["odoo", "--database=okf_live", "--db-filter=^okf_live$$", "--max-cron-threads=0"]
+
+volumes:
+  filestore:
