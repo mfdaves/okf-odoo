@@ -18,10 +18,11 @@ First release: a Producer API v1 producer that reads Odoo 18, 19 and 20 metadata
 - One escaping module for every string read from Odoo, with explicit contexts (inline text, line-start text, code span with a delimiter longer than any backtick run, table cell, link text), checked against a hostile corpus with okf-mcp's parser.
 - Renderer for `index.md`, `modules/`, `models/`, `groups/` and `apps/` concepts with the relation types `defined_in`, `extended_by`, `references`, `depends_on`, `implies` and `opens`; deterministic output so an unchanged database republishes nothing, and file names that stay distinct on case-insensitive file systems and never take the reserved `index.md` or `log.md`.
 - Tests on responses recorded from Odoo 18, 19 and 20, a mock smoke through okf-mcp's producer host, and live gates (`live:shape`, `live:smoke`) against a disposable Odoo in Docker.
+- Experimental tool pack `okfToolPack` (okf-mcp tool-pack API v1) with `odoo_find_models`, `odoo_describe_model`, `odoo_search`, `odoo_read` and `odoo_group`: read-only calls to the `o3p_mcp` data API in Odoo as the resource server, with the signed-in user's token as the subject, strict input schemas, bounded error codes and the same transport hardening as the producer client.
 
 ### Known issues
 
 - Odoo 18 and 19 do not record the groups of fields defined in code (`ir.model.fields.groups` stays empty), so on those versions model concepts state that field groups are not available.
 - Odoo 18 does not record which models are abstract; their kind reads "model or abstract model".
-
+- The tool pack targets okf-mcp's tool-pack API v1, which is experimental; its shape may still change.
 - `okf-mcp` reports every producer exception as `producer_execution_failed`, so the `access_denied` code and section reach the user only when `generate()` is called directly.

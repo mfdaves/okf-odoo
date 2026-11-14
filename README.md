@@ -17,6 +17,11 @@ own: a host such as [`okf-mcp`](https://github.com/mfdaves/okf-mcp) loads it,
 validates the candidate bundle and publishes it through
 `okf producer preview` and `okf producer run`.
 
+It also ships an experimental tool pack with read-only tools for live Odoo
+records ([Odoo data tools](#odoo-data-tools-experimental)). Those never touch
+the metadata reader: they ask an Odoo addon to run each query as the
+signed-in user.
+
 ## Requirements
 
 - Node.js 22 or newer and `@mfdaves/okf-mcp` with Producer API v1.
@@ -202,6 +207,57 @@ one diagnostic per invalid key. `generate()` returns sorted
 `{ path, content }` files and the numeric summary; it writes nothing.
 `readCatalog()`, `buildBundle()` and `createOdooClient()` are exported for
 reuse.
+
+## Odoo data tools (experimental)
+
+`okfToolPack` gives an MCP host such as `okf-mcp` (tool-pack API v1, which is
+experimental and may still change) five read-only tools for live records:
+
+| Tool | Data API operation | Purpose |
+| --- | --- | --- |
+| `odoo_find_models` | `models` | Find models the signed-in user may read, by name or label |
+| `odoo_describe_model` | `describe` | The fields of a model as that user sees them |
+| `odoo_search` | `search` | Records matching a domain, with the requested fields (at most 200 per call) |
+| `odoo_read` | `read` | Records by id (at most 100) |
+| `odoo_group` | `group` | Grouped totals such as `amount_total:sum` and `__count` (at most 500 groups) |
+
+Each tool requires the `odoo.read` scope. The tools do not read Odoo
+directly: every call is a `POST {url}/o3p_mcp/api/v1/{op}` to the data API of
+the `o3p_mcp` Odoo addon, authenticated with the MCP server's
+resource-server client credentials (HTTP Basic) and carrying the signed-in
+user's access token as the subject. The addon checks the token and runs the
+query as that user, so Odoo's access rights, record rules and the addon's
+denylist decide what comes back. The tools therefore work only when the host
+serves MCP over HTTP with users signing in through Odoo; without a subject
+token they fail with `subject_token_required`.
+
+```yaml
+toolPacks:
+  - package: "@mfdaves/okf-odoo"
+    config:
+      url: https://odoo.example.com
+      clientIdEnv: O3P_MCP_CLIENT_ID
+      clientSecretEnv: O3P_MCP_CLIENT_SECRET
+```
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `url` | required | Base URL of the Odoo server; `https`, or `http` for a loopback host only. |
+| `clientIdEnv` | required | Environment variable holding the resource-server client id. |
+| `clientSecretEnv` | required | Environment variable holding the resource-server client secret. |
+| `timeoutMs` | `30000` | Time limit per call, 1000 to 120000 ms. |
+
+Arguments are checked against each tool's input schema before any request.
+Errors are bounded codes with fixed messages: the data API's own
+(`invalid_params`, `invalid_client`, `invalid_token`, `insufficient_scope`,
+`access_denied`, `unknown_op`, `unknown_model`, `result_too_large`,
+`query_error`, `timeout`) and the connector's (`invalid_arguments`,
+`subject_token_required`, `client_credentials_unavailable`, `invalid_config`,
+`data_api_unavailable`, `connection_failed`, `invalid_response`, `aborted`,
+`server_error`). Odoo's error text, the user's token and the client
+credentials never appear in a result or an error. The tool descriptions ask
+an agent to consult the generated `odoo` knowledge bundle, or
+`odoo_describe_model`, before it searches.
 
 ## Security boundary
 

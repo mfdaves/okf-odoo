@@ -8,3 +8,4 @@ okf_version: "0.2"
 - [Configuration](reference/configuration.md)
 - [Access rights per section](reference/access-rights.md)
 - [Generated bundle](reference/output.md)
+- [Odoo data tools](reference/data-tools.md)
