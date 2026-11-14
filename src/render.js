@@ -257,6 +257,9 @@ class Renderer {
       "",
       "## Fields",
       "",
+      this.catalog.fieldGroups === false
+        ? "Field groups are not available on Odoo 19: it does not record which groups may access a field defined in code, so this table cannot show field-level restrictions.\n"
+        : null,
       table(
         ["Field", "Label", "Type", "Relation", "Properties", "Modules", "Help"],
         fieldRows,

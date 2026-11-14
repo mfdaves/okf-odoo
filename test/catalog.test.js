@@ -43,6 +43,12 @@ for (const version of VERSIONS) {
     const catalog = await readCatalog(ReplayClient.forVersion(version), FIXTURE_OPTIONS);
     assert.deepEqual(catalog.sections, [...FIXTURE_OPTIONS.sections]);
     assert.equal(catalog.accessModel, version === "19" ? "ir.model.access" : "ir.access");
+    assert.equal(catalog.fieldGroups, version !== "19");
+    const restricted = catalog.models.flatMap((model) =>
+      model.fields.filter((field) => field.groups.length),
+    );
+    // Odoo 19 leaves ir.model.fields.groups empty for fields defined in code.
+    assert.equal(restricted.length > 0, version !== "19");
 
     const team = catalog.models.find((model) => model.model === "crm.team");
     assert.equal(team.definedIn, "sales_team");

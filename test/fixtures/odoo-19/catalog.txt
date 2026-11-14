@@ -1,5 +1,6 @@
 sections: ["modules","models","access","groups","menus","crons","reports","serverActions"]
 accessModel: "ir.model.access"
+fieldGroups: false
 modules:
   {"name":"account","title":"Invoicing","summary":"Invoices & Payments","version":"19.0.1.5","diskVersion":"19.0.1.5","category":"Invoicing","application":true,"autoInstall":false,"license":"LGPL-3","dependencies":["analytic","base_setup","digest","onboarding","portal","product"],"selected":false}
   {"name":"account_add_gln","title":"Add Partner GLN","summary":"This module adds the Global Location Number to the partner. Used on delivery addresses, it is used to identify stock locations and is mandatory on the UBL/CII eInvoices (but not only). The module is intended be merged with account, later on, in master","version":"19.0.1.0","diskVersion":"19.0.1.0","category":"Invoicing","application":false,"autoInstall":true,"license":"LGPL-3","dependencies":["account"],"selected":false}

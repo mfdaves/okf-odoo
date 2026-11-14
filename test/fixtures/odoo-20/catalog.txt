@@ -1,5 +1,6 @@
 sections: ["modules","models","access","groups","menus","crons","reports","serverActions"]
 accessModel: "ir.access"
+fieldGroups: true
 modules:
   {"name":"account","title":"Invoicing","summary":"Invoices & Payments","version":"20.0.1.6","diskVersion":"20.0.1.6","category":"Invoicing","application":true,"autoInstall":false,"license":"LGPL-3","dependencies":["analytic","base_setup","digest","onboarding","portal","product"],"selected":false}
   {"name":"account_edi_ubl_cii","title":"Import/Export electronic invoices with UBL/CII","summary":null,"version":"20.0.1.0","diskVersion":"20.0.1.0","category":"Invoicing","application":false,"autoInstall":true,"license":"LGPL-3","dependencies":["account"],"selected":false}

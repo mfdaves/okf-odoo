@@ -88,6 +88,10 @@ for (const version of VERSIONS) {
       const strip = (text) => text.replace(/^ {2}at: .*$/m, "");
       assert.equal(strip(later.get(file)), strip(content), file);
     }
+    const team = files.get("models/crm.team.md");
+    const note = /Field groups are not available on Odoo 19/;
+    if (version === "19") assert.match(team, note);
+    else assert.doesNotMatch(team, note);
     assert.deepEqual(frontmatter(files.get("index.md")), { okf_version: "0.2" });
     for (const [file, content] of files) {
       if (file === "index.md") continue;

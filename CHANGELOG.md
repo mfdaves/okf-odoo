@@ -19,4 +19,6 @@ First release: a Producer API v1 producer that reads Odoo 19 and 20 metadata ove
 
 ### Known issues
 
+- Odoo 19 does not record the groups of fields defined in code (`ir.model.fields.groups` stays empty), so on Odoo 19 model concepts state that field groups are not available.
+
 - `okf-mcp` reports every producer exception as `producer_execution_failed`, so the `access_denied` code and section reach the user only when `generate()` is called directly.

@@ -257,6 +257,7 @@ async function readCatalog(client, options = {}) {
   const catalog = {
     sections: SECTIONS.filter(has),
     accessModel: null,
+    fieldGroups: null,
     modules: [],
     modelIndex: [],
     models: [],
@@ -299,9 +300,12 @@ async function readCatalog(client, options = {}) {
         })
         .sort(byKey((model) => model.model));
       modelById = new Map(catalog.modelIndex.map((model) => [model.id, model]));
-      catalog.accessModel = catalog.modelIndex.some((model) => model.model === "ir.access")
-        ? "ir.access"
-        : "ir.model.access";
+      // Odoo 20 introduced ir.access. Odoo 19 is also the version whose
+      // ir.model.fields.groups relation is never filled for fields defined in
+      // code, so its field groups say nothing about restrictions.
+      const odoo20 = catalog.modelIndex.some((model) => model.model === "ir.access");
+      catalog.accessModel = odoo20 ? "ir.access" : "ir.model.access";
+      catalog.fieldGroups = odoo20;
 
       const selected = catalog.modelIndex.filter((model) =>
         model.modules.length ? model.modules.some(selectedModule) : !config.include,

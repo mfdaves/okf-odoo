@@ -147,6 +147,11 @@ apps/<xmlid>.md          a top-level menu, its submenus and the models they open
 .okf-producer.json       written by the host: owned paths and digests
 ```
 
+Field-level groups come from `ir.model.fields.groups`. Odoo 20 records them
+for every field; Odoo 19 leaves them empty for fields defined in code, so on
+Odoo 19 each model concept states that field groups are not available
+instead of showing every field as unrestricted.
+
 Groups and menus created in the database have no XML id and are named
 `group-<id>` and `menu-<id>`. Typed relations: a model is `defined_in` the
 module that registered it first and `extended_by` the others, and

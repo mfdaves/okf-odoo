@@ -45,6 +45,8 @@ relations:
 
 ## Fields
 
+Field groups are not available on Odoo 19: it does not record which groups may access a field defined in code, so this table cannot show field-level restrictions.
+
 | Field | Label | Type | Relation | Properties | Modules | Help |
 | --- | --- | --- | --- | --- | --- | --- |
 | `active` | Active | `boolean` | — | stored | [sales_team](../modules/sales_team.md) | If the active field is set to false, it will allow you to hide the Sales Team without removing it. |
