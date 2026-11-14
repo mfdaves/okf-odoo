@@ -1,0 +1,51 @@
+{
+  "name": "@mfdaves/okf-odoo",
+  "version": "0.0.0",
+  "description": "Read-only Odoo metadata producer for Open Knowledge Format bundles.",
+  "homepage": "https://github.com/mfdaves/okf-odoo#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mfdaves/okf-odoo.git"
+  },
+  "bugs": {
+    "url": "https://github.com/mfdaves/okf-odoo/issues"
+  },
+  "license": "MIT",
+  "type": "commonjs",
+  "main": "src/index.js",
+  "files": [
+    "src",
+    "okf",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node --test \"test/*.test.js\"",
+    "check": "node --test \"test/*.test.js\"",
+    "coverage": "node --experimental-test-coverage --test \"test/*.test.js\"",
+    "lint": "biome lint",
+    "format": "biome format --write",
+    "format:check": "biome format",
+    "self:validate": "node ../okf-mcp/bin/okf-mcp.js --root okf/okf-odoo validate",
+    "pack:check": "npm pack --dry-run"
+  },
+  "keywords": [
+    "okf",
+    "open-knowledge-format",
+    "odoo",
+    "metadata",
+    "erp"
+  ],
+  "engines": {
+    "node": ">=22"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "dependencies": {
+    "js-yaml": "^5.3.0"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "2.5.15"
+  }
+}

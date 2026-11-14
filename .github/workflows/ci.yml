@@ -1,0 +1,55 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
+        with:
+          node-version: "24"
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run format:check
+
+  node:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ["22", "24"]
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          path: okf-odoo
+      - uses: actions/checkout@v6
+        with:
+          repository: mfdaves/okf-mcp
+          path: okf-mcp
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+          cache-dependency-path: |
+            okf-odoo/package-lock.json
+            okf-mcp/package-lock.json
+      - run: npm ci
+        working-directory: okf-mcp
+      - run: npm ci
+        working-directory: okf-odoo
+      - run: npm test
+        working-directory: okf-odoo
+      - run: npm run self:validate
+        working-directory: okf-odoo
+      - run: npm run pack:check
+        working-directory: okf-odoo
