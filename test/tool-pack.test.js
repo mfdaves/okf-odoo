@@ -145,7 +145,7 @@ test("the pack declares API v1, id odoo and six read-only tools", () => {
     assert.equal(tool.outputSchema.type, "object");
     assert.equal(tool.annotations.readOnlyHint, true);
     assert.equal(tool.annotations.destructiveHint, false);
-    assert.ok(tool.description.length > 100 && tool.description.length < 2000, name);
+    assert.ok(tool.description.length > 100 && tool.description.length < 2500, name);
   }
   const { odoo_search: search, odoo_group: group, odoo_read: read } = okfToolPack.tools;
   assert.match(search.description, /`odoo` knowledge bundle/);
@@ -159,6 +159,16 @@ test("the pack declares API v1, id odoo and six read-only tools", () => {
   assert.match(read.description, /odoo_describe_model/);
   assert.match(read.description, /silently left out/);
   assert.match(search.description, /child_of and parent_of are not available/);
+  for (const name of ["odoo_search", "odoo_read", "odoo_group", "odoo_sql"]) {
+    assert.match(
+      okfToolPack.tools[name].description,
+      /readable by every MCP user: record conclusions and aggregates, not personal or confidential values/,
+      name,
+    );
+  }
+  for (const name of ["odoo_find_models", "odoo_describe_model"]) {
+    assert.doesNotMatch(okfToolPack.tools[name].description, /readable by every MCP user/, name);
+  }
   assert.match(search.description, /related record's display name/);
   assert.match(search.description, /refused with invalid_params/);
   assert.doesNotMatch(JSON.stringify(search.inputSchema), /child_of|parent_of/);

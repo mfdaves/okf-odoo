@@ -105,6 +105,10 @@ function annotations(title) {
 
 const RIGHTS =
   "Odoo runs every call as the signed-in user: results contain only what that user may read under Odoo's access rights and record rules, so another user may see different records.";
+// Results follow one user's Odoo access, knowledge written from them is read
+// by everyone.
+const SHARING =
+  "These results are limited to the signed-in user's own Odoo access, but knowledge written from them is readable by every MCP user: record conclusions and aggregates, not personal or confidential values (names of individuals, salaries, health or contact details) that other readers could not see in Odoo.";
 const LOOK_UP_FIRST =
   "Before searching, look up the model in the generated `odoo` knowledge bundle (its models/<model> concept lists the fields, relations and access rules) or call odoo_describe_model, so that you use real field names.";
 
@@ -181,6 +185,7 @@ const TOOLS = [
       "On models whose reads hide part of a record (such as private calendar events), filters, sorting and grouping may use only id and the public fields; others are refused with invalid_params.",
       "count is the number of matching records; truncated is true when more exist than limit (at most 200); page with offset. For totals use odoo_group instead of adding up pages.",
       RIGHTS,
+      SHARING,
     ].join(" "),
     inputSchema: objectSchema(
       {
@@ -218,6 +223,7 @@ const TOOLS = [
       "Read the requested fields of Odoo records by id (at most 100), for example ids returned by odoo_search or the id in a many2one value [id, display name].",
       LOOK_UP_FIRST,
       "Ids that do not exist and records the signed-in user may not read are silently left out, so fewer records than ids may come back.",
+      SHARING,
     ].join(" "),
     inputSchema: objectSchema(
       {
@@ -252,6 +258,7 @@ const TOOLS = [
       "Each group carries its groupby values and aggregates: a relation as [id, display name], a date bucket as [start, label].",
       "The domain has the same syntax as in odoo_search, with paths of at most 4 fields. At most 500 groups.",
       `${RIGHTS} Totals therefore cover only the records the user may read.`,
+      SHARING,
     ].join(" "),
     inputSchema: objectSchema(
       {
@@ -310,6 +317,7 @@ const TOOLS = [
       "Values come as JSON: numbers for numeric columns, ISO 8601 strings for dates and times, seconds for intervals, \\x… hexadecimal for bytea. limit is 1 to 1000 rows (default 100); truncated is true when there are more. tables lists the tables copied, with their model and the rows the user may read.",
       "A query_error carries PostgreSQL's sqlstate, position and message so you can fix the query: 0A000 means the statement is not allowed, 42601 a syntax error, 42P01 a table that is unknown, hidden or not readable (deliberately the same answer).",
       "A user may run at most two queries at once by default (too_many_requests otherwise); unavailable means SQL is not set up on this server. Prefer odoo_search and odoo_group for simple lookups and totals.",
+      SHARING,
     ].join(" "),
     inputSchema: objectSchema(
       {
