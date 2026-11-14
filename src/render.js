@@ -21,9 +21,13 @@ const RELATION_TYPES = Object.freeze([
 const OPERATIONS = { c: "create", r: "read", u: "update", d: "delete" };
 const IDENTIFIER = /^[A-Za-z0-9_.-]+$/;
 
+// A path segment that names one file on every file system. Only a lowercase
+// name made of safe characters is used as is; anything else, including a name
+// that differs from another only by case on macOS or Windows, gets a short
+// hash of the original appended.
 function safeSegment(value) {
-  const original = String(value).normalize("NFC");
-  if (/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(original) && !original.endsWith(".")) return original;
+  const original = String(value).toWellFormed().normalize("NFC");
+  if (/^[a-z0-9][a-z0-9_.-]*$/.test(original) && !original.endsWith(".")) return original;
   const base = original.replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^[.-]+|[.-]+$/g, "") || "object";
   const digest = crypto.createHash("sha256").update(original).digest("hex").slice(0, 8);
   return `${base}--${digest}`;
@@ -588,8 +592,12 @@ function buildBundle(catalog, options = {}) {
     ...(catalog.apps || []).map((app) => renderer.appConcept(app)),
   ];
   const result = new Map();
+  const folded = new Set();
   for (const [file, content] of entries) {
-    if (result.has(file)) throw new Error(`Two concepts map to the same path: ${file}`);
+    // Compared without case: macOS and Windows would write both to one file.
+    const key = file.toLowerCase();
+    if (folded.has(key)) throw new Error(`Two concepts map to the same path: ${file}`);
+    folded.add(key);
     result.set(file, content);
   }
   return result;

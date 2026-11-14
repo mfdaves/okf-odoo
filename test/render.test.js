@@ -365,6 +365,44 @@ test("rendering covers every section and escapes untrusted text", () => {
   ]);
 });
 
+test("names differing only by case get paths that differ without case", () => {
+  assert.equal(safeSegment("m.group_x"), "m.group_x");
+  assert.match(safeSegment("m.group_X"), /^m\.group_X--[a-f0-9]{8}$/);
+  const catalog = syntheticCatalog();
+  const manager = catalog.groups[0];
+  catalog.groups.push(
+    { ...manager, key: "m.group_X", xmlid: "m.group_X", fullName: "Upper", implies: [] },
+    { ...manager, key: "m.group_x", xmlid: "m.group_x", fullName: "Lower", implies: [] },
+  );
+  catalog.groups[1].implies = [
+    { key: "m.group_X", name: "Upper" },
+    { key: "m.group_x", name: "Lower" },
+  ];
+  const files = buildBundle(catalog, OPTIONS);
+  const groups = [...files.keys()].filter((file) => file.startsWith("groups/m.group_"));
+  assert.equal(groups.length, 2);
+  assert.equal(new Set(groups.map((file) => file.toLowerCase())).size, 2);
+  assert.ok(groups.includes("groups/m.group_x.md"));
+  assert.deepEqual(unresolved(files), []);
+  assert.match(files.get("groups/group-77.md"), /\[Upper\]\(m\.group_X--[a-f0-9]{8}\.md\)/);
+  if (siblingAvailable()) assert.equal(validateWithOkfMcp(files).status, 0);
+});
+
+test("two concepts on one path, with or without case, are refused", () => {
+  const same = syntheticCatalog();
+  same.groups.push({ ...same.groups[1] });
+  assert.throws(() => buildBundle(same, OPTIONS), /same path/);
+  // A lowercase name that spells another name's hashed segment in lowercase.
+  const folded = syntheticCatalog();
+  const upper = safeSegment("G");
+  folded.groups.push(
+    { ...folded.groups[1], key: "G", xmlid: "G" },
+    { ...folded.groups[1], key: upper.toLowerCase(), xmlid: upper.toLowerCase() },
+  );
+  assert.notEqual(upper, upper.toLowerCase());
+  assert.throws(() => buildBundle(folded, OPTIONS), /same path/);
+});
+
 test("unsafe identifiers receive stable disambiguated paths", () => {
   assert.equal(safeSegment("sale.order"), "sale.order");
   assert.match(safeSegment("Shop / Ops"), /^Shop-Ops--[a-f0-9]{8}$/);
