@@ -1,0 +1,37 @@
+---
+id: okf://okf-odoo/reference/configuration
+type: OKF Reference
+title: okf-odoo configuration
+description: Producer configuration keys accepted by okf-odoo and their defaults.
+tags: [okf, odoo, configuration]
+relations:
+  - type: configured_by
+    target: repo://src/producer.js
+  - type: checked_by
+    target: repo://test/producer.test.js
+---
+
+# Configuration
+
+The producer configuration lives under `producers[].config` in
+`okf.project.yaml`. Unknown keys are rejected.
+
+- `url` (required): base URL of the Odoo server, `http` or `https`, without
+  credentials, query or fragment.
+- `database`: database name sent as the `X-Odoo-Database` header.
+- `apiKeyEnv` (default `ODOO_API_KEY`): environment variable holding the API
+  key.
+- `source` (default `odoo`): alias used in `odoo://` resource locators.
+- `lang` (default `en_US`): language of labels and menu names.
+- `sections` (default every section but `serverActions`): `modules`,
+  `models`, `access`, `groups`, `menus`, `crons`, `reports`,
+  `serverActions`. `access`, `crons`, `reports` and `serverActions` require
+  `models`.
+- `modules.include` and `modules.exclude`: module names, with `*` matching
+  any characters, selecting the modules documented in full. A model is
+  documented when a selected module defines or extends it.
+- `otherModules` (default `summary`): `summary` renders the other installed
+  modules without their models, `none` leaves them out.
+
+The project must declare the relation types `defined_in`, `extended_by`,
+`references`, `implies` and `opens`; `depends_on` is built into `okf-mcp`.

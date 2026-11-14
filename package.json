@@ -1,6 +1,6 @@
 {
   "name": "@mfdaves/okf-odoo",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Read-only Odoo metadata producer for Open Knowledge Format bundles.",
   "homepage": "https://github.com/mfdaves/okf-odoo#readme",
   "repository": {
@@ -17,6 +17,7 @@
     "src",
     "okf",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "scripts": {

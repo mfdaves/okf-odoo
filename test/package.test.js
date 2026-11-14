@@ -13,7 +13,7 @@ test("the package keeps its runtime to js-yaml and built-in fetch", () => {
   assert.equal(packageJson.engines.node, ">=22");
   assert.deepEqual(Object.keys(packageJson.dependencies), ["js-yaml"]);
   assert.equal(packageJson.bin, undefined);
-  assert.deepEqual(packageJson.files, ["src", "okf", "README.md", "LICENSE"]);
+  assert.deepEqual(packageJson.files, ["src", "okf", "README.md", "CHANGELOG.md", "LICENSE"]);
 });
 
 test("the reference bundle declares OKF 0.2 in its root index", () => {

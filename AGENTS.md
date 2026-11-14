@@ -26,5 +26,8 @@ examples.
 
 Run `npm test`, `npm run lint`, `npm run format:check`, `npm run smoke`, and
 `npm run pack:check`. The normal test suite uses recorded fixtures and a fake
-JSON-2 server and must not require a live Odoo. When a live Odoo is used for
-additional verification, report it separately.
+JSON-2 server and must not require a live Odoo. The live gates
+(`npm run live:shape`, `npm run live:smoke`) run against the disposable server
+of `scripts/live-odoo.sh`; report them separately. Re-record fixtures with
+`npm run live:record` and refresh snapshots with `UPDATE_SNAPSHOTS=1 npm test`
+only when a change to the reader or renderer is intended.
