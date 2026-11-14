@@ -8,6 +8,7 @@ const crypto = require("node:crypto");
 const path = require("node:path");
 const yaml = require("js-yaml");
 const packageJson = require("../package.json");
+const { cell, clean, codeSpan, inline, lineStart, linkText, row } = require("./markdown");
 
 const RELATION_TYPES = Object.freeze([
   "defined_in",
@@ -20,12 +21,6 @@ const RELATION_TYPES = Object.freeze([
 const OPERATIONS = { c: "create", r: "read", u: "update", d: "delete" };
 const IDENTIFIER = /^[A-Za-z0-9_.-]+$/;
 
-function oneLine(value) {
-  return String(value ?? "")
-    .replace(/\s+/g, " ")
-    .trim();
-}
-
 function safeSegment(value) {
   const original = String(value).normalize("NFC");
   if (/^[A-Za-z0-9][A-Za-z0-9_.-]*$/.test(original) && !original.endsWith(".")) return original;
@@ -34,46 +29,14 @@ function safeSegment(value) {
   return `${base}--${digest}`;
 }
 
-// Text read from Odoo is data. Escape what Markdown would take for a link, an
-// HTML tag or an escape, so a label or help text can never add a link that
-// the host would then report as broken.
-function prose(value) {
-  return oneLine(value)
-    .replace(/[\\[\]]/g, "\\$&")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;");
-}
-
-const linkText = prose;
-
-function cell(value) {
-  const line = prose(value);
-  return line ? line.replace(/\|/g, "\\|") : "—";
-}
-
-function code(value) {
-  if (value === null || value === undefined || value === "") return "—";
-  const escaped = String(value)
-    .replace(/&/g, "&amp;")
-    .replace(/</g, "&lt;")
-    .replace(/>/g, "&gt;")
-    .replace(/\|/g, "&#124;")
-    .replace(/\r?\n/g, " ");
-  return `<code>${escaped}</code>`;
-}
-
 function conceptMarkdown(frontmatter, body) {
   const header = yaml.dump(frontmatter, { lineWidth: -1, noRefs: true, sortKeys: false });
-  return `---\n${header.trimEnd()}\n---\n\n${String(body).trim()}\n`;
+  return `---\n${header.trimEnd()}\n---\n\n${String(body).trim()}\n`.toWellFormed();
 }
 
 function table(header, rows, empty) {
   if (!rows.length) return empty;
-  return [
-    header.join(" | "),
-    header.map(() => "---").join(" | "),
-    ...rows.map((row) => row.join(" | ")),
-  ].join("\n");
+  return [row(header), row(header.map(() => "---")), ...rows.map(row)].join("\n");
 }
 
 function list(items, empty) {
@@ -107,7 +70,8 @@ class Renderer {
   }
 
   resource(...parts) {
-    return `odoo://${[this.options.source, ...parts].map(encodeURIComponent).join("/")}`;
+    const encode = (part) => encodeURIComponent(String(part).toWellFormed());
+    return `odoo://${[this.options.source, ...parts].map(encode).join("/")}`;
   }
 
   sources(...models) {
@@ -127,22 +91,24 @@ class Renderer {
     return path.posix.relative(path.posix.dirname(from), to);
   }
 
-  moduleRef(from, name) {
+  // References are a link when the target is rendered, else plain text that is
+  // safe both at the start of a list item and inside a table cell.
+  moduleRef(from, name, table = false) {
     return this.modules.has(name)
       ? `[${linkText(name)}](${this.href(from, files.module(name))})`
-      : code(name);
+      : codeSpan(name, { table });
   }
 
-  modelRef(from, name) {
+  modelRef(from, name, table = false) {
     return this.models.has(name)
       ? `[${linkText(name)}](${this.href(from, files.model(name))})`
-      : code(name);
+      : codeSpan(name, { table });
   }
 
   groupRef(from, group) {
     return this.groups.has(group.key)
       ? `[${linkText(group.name)}](${this.href(from, files.group(group.key))})`
-      : cell(group.name);
+      : lineStart(group.name);
   }
 
   groupRefs(from, groups, empty) {
@@ -159,8 +125,8 @@ class Renderer {
     const ordered = {
       id: this.uri(file),
       type: frontmatter.type,
-      title: frontmatter.title,
-      description: oneLine(frontmatter.description),
+      title: clean(frontmatter.title),
+      description: clean(frontmatter.description),
       resource: frontmatter.resource,
       sources: frontmatter.sources,
       generated: this.generated(),
@@ -179,21 +145,21 @@ class Renderer {
     );
     const modelItem = (model) => `- ${this.modelRef(file, model.model)} — ${cell(model.name)}`;
     const facts = [
-      `- Technical name: ${code(module.name)}`,
-      `- Installed version: ${code(module.version)}`,
+      `- Technical name: ${codeSpan(module.name)}`,
+      `- Installed version: ${codeSpan(module.version)}`,
       module.diskVersion && module.diskVersion !== module.version
-        ? `- Version on disk: ${code(module.diskVersion)} (an upgrade is pending)`
+        ? `- Version on disk: ${codeSpan(module.diskVersion)} (an upgrade is pending)`
         : null,
-      module.category ? `- Category: ${cell(module.category)}` : null,
+      module.category ? `- Category: ${inline(module.category)}` : null,
       `- Application: ${module.application ? "yes" : "no"}`,
       `- Installed automatically with its dependencies: ${module.autoInstall ? "yes" : "no"}`,
-      module.license ? `- License: ${cell(module.license)}` : null,
+      module.license ? `- License: ${inline(module.license)}` : null,
       `- Documented in full: ${module.selected ? "yes" : "no, summary only"}`,
     ].filter(Boolean);
     const body = [
-      `# ${prose(module.title)}`,
+      `# ${inline(module.title)}`,
       "",
-      module.summary ? prose(module.summary) : `Odoo module \`${module.name}\`.`,
+      clean(module.summary) ? lineStart(module.summary) : `Odoo module ${codeSpan(module.name)}.`,
       "",
       ...facts,
       "",
@@ -220,7 +186,7 @@ class Renderer {
       file,
       {
         type: "Odoo Module",
-        title: `${module.title} (${module.name})`,
+        title: `${clean(module.title)} (${clean(module.name)})`,
         description: module.summary || `Odoo module ${module.name} (${module.title}).`,
         resource: this.resource("ir.module.module", module.name),
         sources: this.sources("ir.module.module", "ir.module.module.dependency"),
@@ -238,11 +204,15 @@ class Renderer {
       field.required ? "required" : null,
       field.readonly ? "read-only" : null,
       field.stored ? "stored" : "not stored",
-      field.index ? (field.index === "indexed" ? "indexed" : `indexed (${field.index})`) : null,
-      field.translate ? `translated (${field.translate})` : null,
+      field.index
+        ? field.index === "indexed"
+          ? "indexed"
+          : `indexed (${inline(field.index)})`
+        : null,
+      field.translate ? `translated (${inline(field.translate)})` : null,
       field.companyDependent ? "company-dependent" : null,
-      field.related ? `related to ${code(field.related)}` : null,
-      field.onDelete ? `on delete ${field.onDelete}` : null,
+      field.related ? `related to ${codeSpan(field.related, { table: true })}` : null,
+      field.onDelete ? `on delete ${inline(field.onDelete)}` : null,
       field.custom ? "custom" : null,
       field.groups.length ? `groups: ${this.groupRefs(file, field.groups)}` : null,
     ]
@@ -260,14 +230,14 @@ class Renderer {
       ),
     ].sort();
     const fieldRows = model.fields.map((field) => [
-      code(field.name),
+      codeSpan(field.name, { table: true }),
       cell(field.label),
-      code(field.type),
+      codeSpan(field.type, { table: true }),
       field.relation
-        ? `${this.modelRef(file, field.relation)}${field.relationField ? ` (${code(field.relationField)})` : ""}`
+        ? `${this.modelRef(file, field.relation, true)}${field.relationField ? ` (${codeSpan(field.relationField, { table: true })})` : ""}`
         : "—",
       this.fieldFlags(file, field) || "—",
-      field.modules.map((name) => this.moduleRef(file, name)).join(", ") || "—",
+      field.modules.map((name) => this.moduleRef(file, name, true)).join(", ") || "—",
       cell(field.help),
     ]);
     const selections = model.fields.filter((field) => field.selection.length);
@@ -278,7 +248,7 @@ class Renderer {
       abstract: "abstract model",
     };
     const body = [
-      `# ${prose(model.name)} (\`${model.model}\`)`,
+      `# ${inline(model.name)} (${codeSpan(model.model)})`,
       "",
       `- Kind: ${kind[model.kind] || "model"}`,
       `- Defined in: ${model.definedIn ? this.moduleRef(file, model.definedIn) : "no module (created in the database)"}`,
@@ -297,9 +267,9 @@ class Renderer {
       body.push("", "## Selection values", "");
       for (const field of selections) {
         body.push(
-          `### ${field.name}`,
+          `### ${codeSpan(field.name)}`,
           "",
-          ...field.selection.map((entry) => `- ${code(entry.value)} — ${cell(entry.label)}`),
+          ...field.selection.map((entry) => `- ${codeSpan(entry.value)} — ${cell(entry.label)}`),
           "",
         );
       }
@@ -312,14 +282,14 @@ class Renderer {
         table(
           ["Kind", "Groups", "Operations", "Domain", "Name"],
           model.access.map((entry) => [
-            entry.kind,
+            cell(entry.kind),
             this.groupRefs(
               file,
               entry.groups,
               entry.kind === "restriction" ? "everyone" : "all users",
             ),
             operations(entry.operations),
-            code(entry.domain),
+            codeSpan(entry.domain, { table: true }),
             cell(entry.name),
           ]),
           "No access entries.",
@@ -352,8 +322,8 @@ class Renderer {
           ["Name", "Report", "Type", "Groups"],
           model.reports.map((report) => [
             cell(report.name),
-            code(report.reportName),
-            code(report.type),
+            codeSpan(report.reportName, { table: true }),
+            codeSpan(report.type, { table: true }),
             this.groupRefs(file, report.groups, "—"),
           ]),
           "No reports.",
@@ -369,7 +339,7 @@ class Renderer {
           ["Name", "Type", "In the action menu", "Groups"],
           model.serverActions.map((action) => [
             cell(action.name),
-            code(action.type),
+            codeSpan(action.type, { table: true }),
             action.bound ? "yes" : "no",
             this.groupRefs(file, action.groups, "—"),
           ]),
@@ -406,9 +376,12 @@ class Renderer {
         description: `Odoo ${kind[model.kind] || "model"} ${model.model} (${model.name})${model.definedIn ? ` defined in ${model.definedIn}` : ""}.`,
         resource: this.resource(model.model),
         sources: this.sources(...readFrom),
-        tags: ["odoo", "model", model.kind === "model" ? null : model.kind, model.definedIn].filter(
-          Boolean,
-        ),
+        tags: [
+          "odoo",
+          "model",
+          model.kind === "model" ? null : model.kind,
+          clean(model.definedIn),
+        ].filter(Boolean),
         relations,
       },
       body.join("\n"),
@@ -421,12 +394,14 @@ class Renderer {
       other.implies.some((implied) => implied.key === group.key),
     );
     const body = [
-      `# ${prose(group.fullName)}`,
+      `# ${inline(group.fullName)}`,
       "",
-      group.comment ? prose(group.comment) : `Odoo access group ${prose(group.fullName)}.`,
+      clean(group.comment)
+        ? lineStart(group.comment)
+        : `Odoo access group ${inline(group.fullName)}.`,
       "",
-      group.xmlid ? `- XML id: ${code(group.xmlid)}` : "- No XML id (created in the database)",
-      group.privilege ? `- Privilege: ${cell(group.privilege)}` : null,
+      group.xmlid ? `- XML id: ${codeSpan(group.xmlid)}` : "- No XML id (created in the database)",
+      group.privilege ? `- Privilege: ${inline(group.privilege)}` : null,
       `- Portal or public group: ${group.share ? "yes" : "no"}`,
       "",
       "## Implies",
@@ -450,10 +425,10 @@ class Renderer {
         model.access
           .filter((entry) => entry.groups.some((ref) => ref.key === group.key))
           .map((entry) => [
-            this.modelRef(file, model.model),
-            entry.kind,
+            this.modelRef(file, model.model, true),
+            cell(entry.kind),
             operations(entry.operations),
-            code(entry.domain),
+            codeSpan(entry.domain, { table: true }),
           ]),
       );
       body.push(
@@ -485,7 +460,7 @@ class Renderer {
     if (action.type === "ir.actions.act_window" && action.model) {
       return ` → ${this.modelRef(file, action.model)}`;
     }
-    return ` (${code(action.type)})`;
+    return ` (${codeSpan(action.type)})`;
   }
 
   appConcept(app) {
@@ -493,7 +468,7 @@ class Renderer {
     const items = app.menus.map((menu) => {
       const indent = "  ".repeat(menu.depth - 1);
       const groups = menu.groups.length ? ` — groups: ${this.groupRefs(file, menu.groups)}` : "";
-      return `${indent}- ${cell(menu.path[menu.path.length - 1])}${this.actionText(file, menu.action)}${groups}`;
+      return `${indent}- ${lineStart(menu.path[menu.path.length - 1])}${this.actionText(file, menu.action)}${groups}`;
     });
     const opened = [
       ...new Set(
@@ -504,11 +479,11 @@ class Renderer {
       ),
     ].sort();
     const body = [
-      `# ${prose(app.name)}`,
+      `# ${inline(app.name)}`,
       "",
       `Top-level Odoo menu ${cell(app.name)}${this.actionText(file, app.action)}.`,
       "",
-      app.xmlid ? `- XML id: ${code(app.xmlid)}` : "- No XML id (created in the database)",
+      app.xmlid ? `- XML id: ${codeSpan(app.xmlid)}` : "- No XML id (created in the database)",
       `- Visible to: ${this.groupRefs(file, app.groups, "every user with access to the menus below")}`,
       "",
       "## Menus",
@@ -533,7 +508,7 @@ class Renderer {
   index() {
     const catalog = this.catalog;
     const block = (title, items) => ["", `## ${title}`, "", list(items, "None.")];
-    const body = [`# ${this.options.source} Odoo catalog`];
+    const body = [`# ${inline(this.options.source)} Odoo catalog`];
     if (this.sections.has("menus")) {
       body.push(
         ...block(

@@ -29,7 +29,7 @@ relations:
 
 Top-level Odoo menu Link Tracker.
 
-- XML id: <code>utm.menu_link_tracker_root</code>
+- XML id: `utm.menu_link_tracker_root`
 - Visible to: [Technical Features](../groups/base.group_no_one.md)
 
 ## Menus

@@ -311,21 +311,15 @@ test("rendering covers every section and escapes untrusted text", () => {
   const order = files.get("models/x.order.md");
   assert.match(order, /State \\\| phase/);
   assert.match(order, /required, stored, indexed \(btree_not_null\)/);
-  assert.match(order, /Line one line two &lt;b&gt; \\\[see\\\]\(elsewhere\.md\)/);
+  assert.match(order, /\| Line one line two \\<b> \\\[see\\\]\(elsewhere\.md\) \|/);
   assert.match(order, /groups: \[Shop \/ Manager\]\(\.\.\/groups\/x_shop\.group_manager\.md\)/);
-  assert.match(order, /<code>x_manual<\/code>/);
+  assert.match(order, /\| `x_manual` \|/);
   assert.match(order, /translated \(standard\).*company-dependent.*on delete set null, custom/);
-  assert.match(order, /### state\n\n- <code>draft<\/code> — Draft\n- <code>done<\/code> — Done/);
-  assert.match(
-    order,
-    /restriction \| everyone \| read \| <code>\[\('user_id', '=', uid\)\]<\/code>/,
-  );
+  assert.match(order, /### `state`\n\n- `draft` — Draft\n- `done` — Done/);
+  assert.match(order, /\| restriction \| everyone \| read \| `\[\('user_id', '=', uid\)\]` \|/);
   assert.match(order, /permission \| \[Shop \/ Manager\].* \| create, read, update, delete \| —/);
-  assert.match(
-    order,
-    /Order sheet \| <code>x_shop\.report_order<\/code> \| <code>qweb-pdf<\/code>/,
-  );
-  assert.match(order, /Confirm \| <code>object_write<\/code> \| yes/);
+  assert.match(order, /\| Order sheet \| `x_shop\.report_order` \| `qweb-pdf` \|/);
+  assert.match(order, /\| Confirm \| `object_write` \| yes \|/);
   assert.doesNotMatch(order, /## Scheduled jobs/);
   const meta = frontmatter(order);
   assert.deepEqual(meta.relations, [{ type: "defined_in", target: "okf://erp/modules/x_shop" }]);
@@ -342,8 +336,8 @@ test("rendering covers every section and escapes untrusted text", () => {
   );
 
   const shop = files.get("modules/x_shop.md");
-  assert.match(shop, /Version on disk: <code>20\.0\.1\.1<\/code> \(an upgrade is pending\)/);
-  assert.match(shop, /- <code>missing_module<\/code>/);
+  assert.match(shop, /Version on disk: `20\.0\.1\.1` \(an upgrade is pending\)/);
+  assert.match(shop, /- `missing_module`/);
   assert.deepEqual(frontmatter(shop).relations, [
     { type: "depends_on", target: "okf://erp/modules/base" },
   ]);
@@ -360,7 +354,7 @@ test("rendering covers every section and escapes untrusted text", () => {
   const app = files.get("apps/menu-12.md");
   assert.match(
     app,
-    /- Orders → \[x\.order\]\(\.\.\/models\/x\.order\.md\)\n {2}- Dashboard \(<code>ir\.actions\.client<\/code>\) — groups:/,
+    /- Orders → \[x\.order\]\(\.\.\/models\/x\.order\.md\)\n {2}- Dashboard \(`ir\.actions\.client`\) — groups:/,
   );
   assert.deepEqual(frontmatter(app).relations, [
     { type: "opens", target: "okf://erp/models/x.order" },

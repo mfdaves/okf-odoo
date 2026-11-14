@@ -43,50 +43,50 @@ relations:
 
 ## Fields
 
-Field | Label | Type | Relation | Properties | Modules | Help
---- | --- | --- | --- | --- | --- | ---
-<code>active</code> | Active | <code>boolean</code> | — | stored | [sales_team](../modules/sales_team.md) | If the active field is set to false, it will allow you to hide the Sales Team without removing it.
-<code>color</code> | Color Index | <code>integer</code> | — | stored | [sales_team](../modules/sales_team.md) | The color of the channel
-<code>company_id</code> | Company | <code>many2one</code> | <code>res.company</code> | stored, indexed (btree), on delete set null | [sales_team](../modules/sales_team.md) | —
-<code>create_date</code> | Created on | <code>datetime</code> | — | read-only, stored | [sales_team](../modules/sales_team.md) | —
-<code>create_uid</code> | Created by | <code>many2one</code> | [res.users](res.users.md) | read-only, stored, on delete set null | [sales_team](../modules/sales_team.md) | —
-<code>crm_team_member_all_ids</code> | Sales Team Members (incl. inactive) | <code>one2many</code> | [crm.team.member](crm.team.member.md) (<code>crm_team_id</code>) | stored | [sales_team](../modules/sales_team.md) | —
-<code>crm_team_member_ids</code> | Sales Team Members | <code>one2many</code> | [crm.team.member](crm.team.member.md) (<code>crm_team_id</code>) | stored | [sales_team](../modules/sales_team.md) | Add members to automatically assign their documents to this sales team.
-<code>currency_id</code> | Currency | <code>many2one</code> | <code>res.currency</code> | read-only, not stored, related to <code>company_id.currency_id</code> | [sales_team](../modules/sales_team.md) | —
-<code>dashboard_button_name</code> | Dashboard Button | <code>char</code> | — | read-only, not stored | [sales_team](../modules/sales_team.md) | —
-<code>display_name</code> | Display Name | <code>char</code> | — | read-only, not stored | [sale](../modules/sale.md), [sales_team](../modules/sales_team.md) | —
-<code>favorite_user_ids</code> | Favorite Members | <code>many2many</code> | [res.users](res.users.md) | stored | [sales_team](../modules/sales_team.md) | —
-<code>has_message</code> | Has Message | <code>boolean</code> | — | read-only, not stored | [sales_team](../modules/sales_team.md) | —
-<code>id</code> | ID | <code>integer</code> | — | read-only, stored | [sale](../modules/sale.md), [sales_team](../modules/sales_team.md) | —
-<code>is_favorite</code> | Show on dashboard | <code>boolean</code> | — | not stored | [sales_team](../modules/sales_team.md) | Favorite teams to display them in the dashboard and access them easily.
-<code>is_membership_multi</code> | Multiple Memberships Allowed | <code>boolean</code> | — | read-only, not stored | [sales_team](../modules/sales_team.md) | If True, users may belong to several sales teams. Otherwise membership is limited to a single sales team.
-<code>member_company_ids</code> | Member Company | <code>many2many</code> | <code>res.company</code> | read-only, not stored | [sales_team](../modules/sales_team.md) | UX: Limit to team company or all if no company
-<code>member_ids</code> | Salespersons | <code>many2many</code> | [res.users](res.users.md) | not stored | [sales_team](../modules/sales_team.md) | Users assigned to this team.
-<code>member_warning</code> | Membership Issue Warning | <code>text</code> | — | read-only, not stored | [sales_team](../modules/sales_team.md) | —
-<code>message_attachment_count</code> | Attachment Count | <code>integer</code> | — | read-only, not stored, groups: [Role / User](../groups/base.group_user.md) | [sales_team](../modules/sales_team.md) | —
-<code>message_follower_ids</code> | Followers | <code>one2many</code> | <code>mail.followers</code> (<code>res_id</code>) | stored, groups: [Role / User](../groups/base.group_user.md) | [sales_team](../modules/sales_team.md) | —
-<code>message_has_error</code> | Message Delivery error | <code>boolean</code> | — | read-only, not stored | [sales_team](../modules/sales_team.md) | If checked, some messages have a delivery error.
-<code>message_has_error_counter</code> | Number of errors | <code>integer</code> | — | read-only, not stored | [sales_team](../modules/sales_team.md) | Number of messages with delivery error
-<code>message_has_sms_error</code> | SMS Delivery error | <code>boolean</code> | — | read-only, not stored | [sms](../modules/sms.md) | If checked, some messages have a delivery error.
-<code>message_ids</code> | Messages | <code>one2many</code> | <code>mail.message</code> (<code>res_id</code>) | stored | [sales_team](../modules/sales_team.md) | —
-<code>message_is_follower</code> | Is Follower | <code>boolean</code> | — | read-only, not stored | [sales_team](../modules/sales_team.md) | —
-<code>message_needaction</code> | Action Needed | <code>boolean</code> | — | read-only, not stored | [sales_team](../modules/sales_team.md) | If checked, new messages require your attention.
-<code>message_needaction_counter</code> | Number of Actions | <code>integer</code> | — | read-only, not stored | [sales_team](../modules/sales_team.md) | Number of messages requiring action
-<code>message_partner_ids</code> | Followers (Partners) | <code>many2many</code> | <code>res.partner</code> | not stored | [sales_team](../modules/sales_team.md) | —
-<code>name</code> | Sales Team | <code>char</code> | — | required, stored, translated (standard) | [sales_team](../modules/sales_team.md) | —
-<code>sale_order_count</code> | # Sale Orders | <code>integer</code> | — | read-only, not stored | [sale](../modules/sale.md) | —
-<code>sequence</code> | Sequence | <code>integer</code> | — | stored | [sales_team](../modules/sales_team.md) | —
-<code>user_id</code> | Team Leader | <code>many2one</code> | [res.users](res.users.md) | stored, on delete set null | [sales_team](../modules/sales_team.md) | —
-<code>write_date</code> | Last Updated on | <code>datetime</code> | — | read-only, stored | [sales_team](../modules/sales_team.md) | —
-<code>write_uid</code> | Last Updated by | <code>many2one</code> | [res.users](res.users.md) | read-only, stored, on delete set null | [sales_team](../modules/sales_team.md) | —
+| Field | Label | Type | Relation | Properties | Modules | Help |
+| --- | --- | --- | --- | --- | --- | --- |
+| `active` | Active | `boolean` | — | stored | [sales_team](../modules/sales_team.md) | If the active field is set to false, it will allow you to hide the Sales Team without removing it. |
+| `color` | Color Index | `integer` | — | stored | [sales_team](../modules/sales_team.md) | The color of the channel |
+| `company_id` | Company | `many2one` | `res.company` | stored, indexed (btree), on delete set null | [sales_team](../modules/sales_team.md) | — |
+| `create_date` | Created on | `datetime` | — | read-only, stored | [sales_team](../modules/sales_team.md) | — |
+| `create_uid` | Created by | `many2one` | [res.users](res.users.md) | read-only, stored, on delete set null | [sales_team](../modules/sales_team.md) | — |
+| `crm_team_member_all_ids` | Sales Team Members (incl. inactive) | `one2many` | [crm.team.member](crm.team.member.md) (`crm_team_id`) | stored | [sales_team](../modules/sales_team.md) | — |
+| `crm_team_member_ids` | Sales Team Members | `one2many` | [crm.team.member](crm.team.member.md) (`crm_team_id`) | stored | [sales_team](../modules/sales_team.md) | Add members to automatically assign their documents to this sales team. |
+| `currency_id` | Currency | `many2one` | `res.currency` | read-only, not stored, related to `company_id.currency_id` | [sales_team](../modules/sales_team.md) | — |
+| `dashboard_button_name` | Dashboard Button | `char` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | — |
+| `display_name` | Display Name | `char` | — | read-only, not stored | [sale](../modules/sale.md), [sales_team](../modules/sales_team.md) | — |
+| `favorite_user_ids` | Favorite Members | `many2many` | [res.users](res.users.md) | stored | [sales_team](../modules/sales_team.md) | — |
+| `has_message` | Has Message | `boolean` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | — |
+| `id` | ID | `integer` | — | read-only, stored | [sale](../modules/sale.md), [sales_team](../modules/sales_team.md) | — |
+| `is_favorite` | Show on dashboard | `boolean` | — | not stored | [sales_team](../modules/sales_team.md) | Favorite teams to display them in the dashboard and access them easily. |
+| `is_membership_multi` | Multiple Memberships Allowed | `boolean` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | If True, users may belong to several sales teams. Otherwise membership is limited to a single sales team. |
+| `member_company_ids` | Member Company | `many2many` | `res.company` | read-only, not stored | [sales_team](../modules/sales_team.md) | UX: Limit to team company or all if no company |
+| `member_ids` | Salespersons | `many2many` | [res.users](res.users.md) | not stored | [sales_team](../modules/sales_team.md) | Users assigned to this team. |
+| `member_warning` | Membership Issue Warning | `text` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | — |
+| `message_attachment_count` | Attachment Count | `integer` | — | read-only, not stored, groups: [Role / User](../groups/base.group_user.md) | [sales_team](../modules/sales_team.md) | — |
+| `message_follower_ids` | Followers | `one2many` | `mail.followers` (`res_id`) | stored, groups: [Role / User](../groups/base.group_user.md) | [sales_team](../modules/sales_team.md) | — |
+| `message_has_error` | Message Delivery error | `boolean` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | If checked, some messages have a delivery error. |
+| `message_has_error_counter` | Number of errors | `integer` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | Number of messages with delivery error |
+| `message_has_sms_error` | SMS Delivery error | `boolean` | — | read-only, not stored | [sms](../modules/sms.md) | If checked, some messages have a delivery error. |
+| `message_ids` | Messages | `one2many` | `mail.message` (`res_id`) | stored | [sales_team](../modules/sales_team.md) | — |
+| `message_is_follower` | Is Follower | `boolean` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | — |
+| `message_needaction` | Action Needed | `boolean` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | If checked, new messages require your attention. |
+| `message_needaction_counter` | Number of Actions | `integer` | — | read-only, not stored | [sales_team](../modules/sales_team.md) | Number of messages requiring action |
+| `message_partner_ids` | Followers (Partners) | `many2many` | `res.partner` | not stored | [sales_team](../modules/sales_team.md) | — |
+| `name` | Sales Team | `char` | — | required, stored, translated (standard) | [sales_team](../modules/sales_team.md) | — |
+| `sale_order_count` | \# Sale Orders | `integer` | — | read-only, not stored | [sale](../modules/sale.md) | — |
+| `sequence` | Sequence | `integer` | — | stored | [sales_team](../modules/sales_team.md) | — |
+| `user_id` | Team Leader | `many2one` | [res.users](res.users.md) | stored, on delete set null | [sales_team](../modules/sales_team.md) | — |
+| `write_date` | Last Updated on | `datetime` | — | read-only, stored | [sales_team](../modules/sales_team.md) | — |
+| `write_uid` | Last Updated by | `many2one` | [res.users](res.users.md) | read-only, stored, on delete set null | [sales_team](../modules/sales_team.md) | — |
 
 ## Access
 
-Kind | Groups | Operations | Domain | Name
---- | --- | --- | --- | ---
-permission | [Role / User](../groups/base.group_user.md) | read | — | crm.team
-permission | [Sales / Administrator](../groups/sales_team.group_sale_manager.md) | create, read, update, delete | — | All Salesteam
-restriction | everyone | create, read, update, delete | <code>[('company_id', 'in', company_ids + [False])]</code> | Sales Team multi-company
+| Kind | Groups | Operations | Domain | Name |
+| --- | --- | --- | --- | --- |
+| permission | [Role / User](../groups/base.group_user.md) | read | — | crm.team |
+| permission | [Sales / Administrator](../groups/sales_team.group_sale_manager.md) | create, read, update, delete | — | All Salesteam |
+| restriction | everyone | create, read, update, delete | `[('company_id', 'in', company_ids + [False])]` | Sales Team multi-company |
 
 ## Scheduled jobs
 

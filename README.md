@@ -187,6 +187,11 @@ reuse.
 - Every field requested is listed in one allowlist per Odoo model
   (`FIELDS` in `src/catalog.js`); record counts, scheduling timestamps,
   server-action code and webhook URLs are not in it.
+- Text read from Odoo is written through one escaping module
+  (`src/markdown.js`) with a context per position: inline text, line-start
+  text, code span, table cell and link text. Labels, help texts, domains and
+  names therefore read back as the same text and cannot add links, images,
+  HTML, headings, lists, fences or table columns.
 - Error messages carry a fixed text per code, never the server's response.
 - The API key is read from the environment variable the host hands over and
   is never rendered.

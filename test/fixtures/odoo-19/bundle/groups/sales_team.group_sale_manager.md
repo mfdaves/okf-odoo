@@ -26,7 +26,7 @@ relations:
 
 the user will have an access to the sales configuration as well as statistic reports.
 
-- XML id: <code>sales_team.group_sale_manager</code>
+- XML id: `sales_team.group_sale_manager`
 - Privilege: Sales
 - Portal or public group: no
 
@@ -41,8 +41,8 @@ No group implies this one.
 
 ## Access on documented models
 
-Model | Kind | Operations | Domain
---- | --- | --- | ---
-[crm.tag](../models/crm.tag.md) | permission | create, read, update, delete | —
-[crm.team](../models/crm.team.md) | permission | create, read, update, delete | —
-[crm.team.member](../models/crm.team.member.md) | permission | create, read, update, delete | —
+| Model | Kind | Operations | Domain |
+| --- | --- | --- | --- |
+| [crm.tag](../models/crm.tag.md) | permission | create, read, update, delete | — |
+| [crm.team](../models/crm.team.md) | permission | create, read, update, delete | — |
+| [crm.team.member](../models/crm.team.member.md) | permission | create, read, update, delete | — |

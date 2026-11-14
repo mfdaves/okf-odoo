@@ -26,8 +26,8 @@ relations:
 
 Sales Teams
 
-- Technical name: <code>sales_team</code>
-- Installed version: <code>20.0.1.1</code>
+- Technical name: `sales_team`
+- Installed version: `20.0.1.1`
 - Category: Sales
 - Application: no
 - Installed automatically with its dependencies: no

@@ -23,25 +23,21 @@ function writeFiles(root, files) {
   }
 }
 
-// Writes the bundle into a project that declares the producer's relation types
-// with strict links, and runs `okf validate` on it.
-function validateWithOkfMcp(files, bundle = "erp") {
+// Writes the bundles (id -> files) into one project that declares the
+// producer's relation types with strict links, and runs `okf validate` on it.
+function validateBundlesWithOkfMcp(bundles) {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), "okf-odoo-validate-"));
   try {
-    writeFiles(path.join(root, "okf", bundle), files);
+    for (const [bundle, files] of bundles) writeFiles(path.join(root, "okf", bundle), files);
     const project = path.join(root, "okf.project.yaml");
     fs.writeFileSync(
       project,
-      [
-        "project: okf-odoo validation",
-        "strictLinks: true",
-        "bundles:",
-        `  - id: ${bundle}`,
-        `    root: okf/${bundle}`,
-        "relationTypes:",
-        ...PROJECT_RELATION_TYPES.map((type) => `  - ${type}`),
-        "",
-      ].join("\n"),
+      yaml.dump({
+        project: "okf-odoo validation",
+        strictLinks: true,
+        bundles: [...bundles.keys()].map((id) => ({ id, root: `okf/${id}` })),
+        relationTypes: PROJECT_RELATION_TYPES,
+      }),
     );
     const run = spawnSync(process.execPath, [MCP_CLI, "--project", project, "validate"], {
       encoding: "utf8",
@@ -57,6 +53,10 @@ function validateWithOkfMcp(files, bundle = "erp") {
   } finally {
     fs.rmSync(root, { recursive: true, force: true });
   }
+}
+
+function validateWithOkfMcp(files, bundle = "erp") {
+  return validateBundlesWithOkfMcp(new Map([[bundle, files]]));
 }
 
 // A project with one `odoo` producer for the given config, served by okf-mcp's
@@ -101,6 +101,7 @@ module.exports = {
   PROJECT_RELATION_TYPES,
   producerHost,
   siblingAvailable,
+  validateBundlesWithOkfMcp,
   validateWithOkfMcp,
   writeFiles,
 };

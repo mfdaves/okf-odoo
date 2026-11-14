@@ -13,6 +13,7 @@ First release: a Producer API v1 producer that reads Odoo 19 and 20 metadata ove
 - Producer configuration with a required `apiKeyEnv`, because the host hands a producer only the secrets its configuration names.
 - `sections` to select what is read; a section the key cannot read fails with `access_denied` and the section name.
 - `modules.include` / `modules.exclude` and `otherModules: summary | none`.
+- One escaping module for every string read from Odoo, with explicit contexts (inline text, line-start text, code span with a delimiter longer than any backtick run, table cell, link text), checked against a hostile corpus with okf-mcp's parser.
 - Renderer for `index.md`, `modules/`, `models/`, `groups/` and `apps/` concepts with the relation types `defined_in`, `extended_by`, `references`, `depends_on`, `implies` and `opens`; deterministic output so an unchanged database republishes nothing.
 - Tests on responses recorded from Odoo 19 and 20, a mock smoke through okf-mcp's producer host, and live gates (`live:shape`, `live:smoke`) against a disposable Odoo in Docker.
 

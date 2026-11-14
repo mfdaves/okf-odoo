@@ -142,7 +142,7 @@ async function liveSmoke() {
 
     const order = read(bundleRoot, "models/sale.order.md");
     assert.match(order, /type: defined_in\n {4}target: okf:\/\/erp\/modules\/sale\n/);
-    assert.match(order, /<code>partner_id<\/code> \| Customer \| <code>many2one<\/code>/);
+    assert.match(order, /\| `partner_id` \| Customer \| `many2one` \|/);
     assert.match(order, /## Access\n/);
     const partner = read(bundleRoot, "models/res.partner.md");
     assert.match(partner, /type: extended_by\n {4}target: okf:\/\/erp\/modules\/sale\n/);
