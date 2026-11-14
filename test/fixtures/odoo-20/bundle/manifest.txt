@@ -25,8 +25,8 @@ e2c249921a36e021 groups/base.group_everyone.md
 8f29a46dc44be6c5 groups/base.group_multi_currency.md
 c049c7422bd3f589 groups/base.group_no_one.md
 9ee939e037e5cdbe groups/base.group_partner_manager.md
-b01114b99a46d5b1 groups/base.group_portal.md
-c56bee0e5a3e7b8e groups/base.group_public.md
+d05af1cda8596947 groups/base.group_portal.md
+bf363954f4d4fc36 groups/base.group_public.md
 cebf040abfdb9728 groups/base.group_sanitize_override.md
 ec82f5367b3ed99c groups/base.group_system.md
 278ac451b3823d94 groups/base.group_user.md
@@ -53,7 +53,7 @@ c749e98506a716a5 groups/spreadsheet_dashboard.group_dashboard_manager.md
 0dc48535d45c9793 models/crm.team.md
 a46b31033ee39e37 models/crm.team.member.md
 aeae9d735b3d1376 models/ir.http.md
-50a68909a04438d8 models/res.users.md
+305f9fd2f97e2b0c models/res.users.md
 50b2dc70a590410a models/utm.campaign.md
 f7366a1ad010a691 models/utm.medium.md
 bd7747c429e13d0b models/utm.mixin.md

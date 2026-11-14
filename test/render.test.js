@@ -45,7 +45,8 @@ function unresolved(files) {
   const ids = new Set([...files.keys()].map((file) => `okf://erp/${file.slice(0, -3)}`));
   for (const [file, content] of files) {
     const body = content.replace(/^---\n[\s\S]*?\n---\n/, "");
-    for (const match of body.matchAll(/\]\(([^)]+)\)/g)) {
+    // An escaped bracket is literal text, not the end of a link.
+    for (const match of body.matchAll(/(?<!\\)\]\(([^)]+)\)/g)) {
       const target = path.posix.normalize(path.posix.join(path.posix.dirname(file), match[1]));
       if (!files.has(target)) problems.push(`${file}: link ${match[1]}`);
     }
@@ -183,7 +184,7 @@ function syntheticCatalog() {
             index: "btree_not_null",
             translate: null,
             related: null,
-            help: "Line one\nline two <b>",
+            help: "Line one\nline two <b> [see](elsewhere.md)",
             custom: false,
             companyDependent: false,
             onDelete: null,
@@ -255,7 +256,7 @@ function syntheticCatalog() {
         name: "Ad hoc",
         fullName: "Ad hoc",
         privilege: null,
-        comment: "Made in the user interface",
+        comment: "Made in the [user interface](ui.md)",
         share: false,
         implies: [],
       },
@@ -302,10 +303,15 @@ test("rendering covers every section and escapes untrusted text", () => {
     ],
   );
   assert.deepEqual(unresolved(files), []);
+  if (siblingAvailable()) {
+    const outcome = validateWithOkfMcp(files);
+    assert.equal(outcome.status, 0, JSON.stringify(outcome.result?.diagnostics));
+    assert.deepEqual(outcome.result.warnings, []);
+  }
   const order = files.get("models/x.order.md");
   assert.match(order, /State \\\| phase/);
   assert.match(order, /required, stored, indexed \(btree_not_null\)/);
-  assert.match(order, /Line one line two <b>/);
+  assert.match(order, /Line one line two &lt;b&gt; \\\[see\\\]\(elsewhere\.md\)/);
   assert.match(order, /groups: \[Shop \/ Manager\]\(\.\.\/groups\/x_shop\.group_manager\.md\)/);
   assert.match(order, /<code>x_manual<\/code>/);
   assert.match(order, /translated \(standard\).*company-dependent.*on delete set null, custom/);
@@ -348,6 +354,7 @@ test("rendering covers every section and escapes untrusted text", () => {
     { type: "implies", target: "okf://erp/groups/group-77" },
   ]);
   assert.match(files.get("groups/group-77.md"), /No XML id \(created in the database\)/);
+  assert.match(files.get("groups/group-77.md"), /Made in the \\\[user interface\\\]\(ui\.md\)/);
   assert.match(files.get("groups/group-77.md"), /Implied by\n\n- \[Shop \/ Manager\]/);
 
   const app = files.get("apps/menu-12.md");

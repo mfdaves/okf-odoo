@@ -34,12 +34,20 @@ function safeSegment(value) {
   return `${base}--${digest}`;
 }
 
-function linkText(value) {
-  return oneLine(value).replace(/([\\[\]])/g, "\\$1");
+// Text read from Odoo is data. Escape what Markdown would take for a link, an
+// HTML tag or an escape, so a label or help text can never add a link that
+// the host would then report as broken.
+function prose(value) {
+  return oneLine(value)
+    .replace(/[\\[\]]/g, "\\$&")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
 }
 
+const linkText = prose;
+
 function cell(value) {
-  const line = oneLine(value);
+  const line = prose(value);
   return line ? line.replace(/\|/g, "\\|") : "—";
 }
 
@@ -183,9 +191,9 @@ class Renderer {
       `- Documented in full: ${module.selected ? "yes" : "no, summary only"}`,
     ].filter(Boolean);
     const body = [
-      `# ${oneLine(module.title)}`,
+      `# ${prose(module.title)}`,
       "",
-      module.summary || `Odoo module \`${module.name}\`.`,
+      module.summary ? prose(module.summary) : `Odoo module \`${module.name}\`.`,
       "",
       ...facts,
       "",
@@ -270,7 +278,7 @@ class Renderer {
       abstract: "abstract model",
     };
     const body = [
-      `# ${oneLine(model.name)} (\`${model.model}\`)`,
+      `# ${prose(model.name)} (\`${model.model}\`)`,
       "",
       `- Kind: ${kind[model.kind] || "model"}`,
       `- Defined in: ${model.definedIn ? this.moduleRef(file, model.definedIn) : "no module (created in the database)"}`,
@@ -413,9 +421,9 @@ class Renderer {
       other.implies.some((implied) => implied.key === group.key),
     );
     const body = [
-      `# ${oneLine(group.fullName)}`,
+      `# ${prose(group.fullName)}`,
       "",
-      group.comment || `Odoo access group ${group.fullName}.`,
+      group.comment ? prose(group.comment) : `Odoo access group ${prose(group.fullName)}.`,
       "",
       group.xmlid ? `- XML id: ${code(group.xmlid)}` : "- No XML id (created in the database)",
       group.privilege ? `- Privilege: ${cell(group.privilege)}` : null,
@@ -496,7 +504,7 @@ class Renderer {
       ),
     ].sort();
     const body = [
-      `# ${oneLine(app.name)}`,
+      `# ${prose(app.name)}`,
       "",
       `Top-level Odoo menu ${cell(app.name)}${this.actionText(file, app.action)}.`,
       "",
