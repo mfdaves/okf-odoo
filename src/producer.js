@@ -53,7 +53,7 @@ function validateConfig(value = {}) {
       report(
         "invalid_url",
         "url",
-        "url must be an http or https URL without credentials, query, or fragment.",
+        "url must be an https URL (http only for a loopback host) without credentials, query, or fragment.",
       );
     }
   }

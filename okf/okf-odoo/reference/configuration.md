@@ -16,8 +16,8 @@ relations:
 The producer configuration lives under `producers[].config` in
 `okf.project.yaml`. Unknown keys are rejected.
 
-- `url` (required): base URL of the Odoo server, `http` or `https`, without
-  credentials, query or fragment.
+- `url` (required): base URL of the Odoo server without credentials, query or
+  fragment; `https`, or `http` for a loopback host only.
 - `database`: database name sent as the `X-Odoo-Database` header.
 - `apiKeyEnv` (required): environment variable holding the API key; the host
   hands a producer only the variables its configuration names.

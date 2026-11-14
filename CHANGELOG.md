@@ -8,7 +8,7 @@ First release: a Producer API v1 producer that reads Odoo 19 and 20 metadata ove
 
 ### Added
 
-- JSON-2 client limited to `fields_get`, `read` and `search_read` with explicit field lists, bearer API key, optional `X-Odoo-Database`, timeouts, paging by id, and fixed error codes (`invalid_api_key`, `access_denied`, `model_not_found`, `json2_unavailable`, `invalid_request`, `server_error`, `timeout`, `aborted`, `connection_failed`).
+- JSON-2 client limited to `fields_get`, `read` and `search_read` with explicit field lists, bearer API key over `https` (plain `http` only for a loopback host), optional `X-Odoo-Database`, timeouts, paging by id, a 32 MiB response limit enforced while the body streams, and fixed error codes (`invalid_api_key`, `access_denied`, `model_not_found`, `json2_unavailable`, `invalid_request`, `server_error`, `timeout`, `aborted`, `connection_failed`).
 - Catalog reader for installed modules and dependencies, models, fields and selection values, access entries (`ir.access` on Odoo 20, `ir.model.access` and `ir.rule` on Odoo 19, one shape), groups, menus and window actions, scheduled jobs, reports and server actions, with one field allowlist per Odoo model.
 - Producer configuration with a required `apiKeyEnv`, because the host hands a producer only the secrets its configuration names.
 - `sections` to select what is read; a section the key cannot read fails with `access_denied` and the section name.

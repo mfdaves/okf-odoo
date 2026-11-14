@@ -100,7 +100,7 @@ producers:
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `url` | required | Base URL of the Odoo server, `http` or `https`, without credentials, query or fragment. |
+| `url` | required | Base URL of the Odoo server without credentials, query or fragment. It must use `https`, except for a loopback host (`localhost`, `127.0.0.0/8`, `[::1]`), because the API key travels as a bearer token. |
 | `database` | none | Sent as the `X-Odoo-Database` header; needed when the server hosts several databases. |
 | `apiKeyEnv` | required | Name of the environment variable that holds the API key. The host hands a producer only the variables its configuration names. |
 | `source` | `odoo` | Stable, non-secret alias used in `odoo://` resource locators and in the index title. |
@@ -202,6 +202,7 @@ reuse.
   names therefore read back as the same text and cannot add links, images,
   HTML, headings, lists, fences or table columns.
 - Error messages carry a fixed text per code, never the server's response.
+- Responses are read as a stream and abandoned once they pass 32 MiB.
 - The API key is read from the environment variable the host hands over and
   is never rendered.
 
@@ -228,7 +229,7 @@ The live gates run against a disposable Odoo in Docker (ports 18069 for 19
 and 18070 for 20):
 
 ```bash
-scripts/live-odoo.sh up 19 > odoo.env
+scripts/live-odoo.sh up 19 > odoo.env   # holds the API keys; ignored by Git
 set -a; . ./odoo.env; set +a
 OKF_ODOO_LIVE_TEST=1 npm run live:shape
 OKF_ODOO_LIVE_TEST=1 npm run live:smoke

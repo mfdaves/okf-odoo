@@ -56,7 +56,16 @@ function normalizeBaseUrl(value) {
   if (parsed.search || parsed.hash) {
     throw new TypeError("The Odoo url must not carry a query or fragment.");
   }
+  // The API key travels as a bearer token, so plain http is only for a server
+  // on this machine.
+  if (parsed.protocol === "http:" && !isLoopback(parsed.hostname)) {
+    throw new TypeError("The Odoo url must use https unless the host is a loopback address.");
+  }
   return `${parsed.origin}${parsed.pathname.replace(/\/+$/, "")}`;
+}
+
+function isLoopback(hostname) {
+  return hostname === "localhost" || hostname === "[::1]" || /^127(\.\d{1,3}){3}$/.test(hostname);
 }
 
 // The JSON-2 dispatcher answers an unknown model or method with 404 and a JSON
@@ -75,16 +84,29 @@ function errorForStatus(response, isJson, details) {
   return new OdooError("server_error", { ...details, status });
 }
 
-async function readBody(response, details) {
+// Reads the body chunk by chunk and stops as soon as it passes the limit, so
+// an oversized or endless response is never buffered whole.
+async function readBody(response, details, limit) {
   const length = Number(response.headers.get("content-length"));
-  if (Number.isFinite(length) && length > MAX_RESPONSE_BYTES) {
+  if (Number.isFinite(length) && length > limit) {
+    await response.body?.cancel().catch(() => {});
     throw new OdooError("response_too_large", details);
   }
-  const text = await response.text();
-  if (Buffer.byteLength(text) > MAX_RESPONSE_BYTES) {
-    throw new OdooError("response_too_large", details);
+  if (!response.body) return "";
+  const reader = response.body.getReader();
+  const chunks = [];
+  let total = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    total += value.byteLength;
+    if (total > limit) {
+      await reader.cancel().catch(() => {});
+      throw new OdooError("response_too_large", details);
+    }
+    chunks.push(value);
   }
-  return text;
+  return Buffer.concat(chunks).toString("utf8");
 }
 
 async function callOdoo(options) {
@@ -97,6 +119,7 @@ async function callOdoo(options) {
     params = {},
     signal,
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxResponseBytes = MAX_RESPONSE_BYTES,
     fetch: fetchImpl = globalThis.fetch,
   } = options || {};
   if (!READ_METHODS.has(method)) throw new OdooError("method_not_allowed", { model, method });
@@ -141,7 +164,7 @@ async function callOdoo(options) {
       signal: combined,
       redirect: "error",
     });
-    text = await readBody(response, details);
+    text = await readBody(response, details, maxResponseBytes);
   } catch (error) {
     if (error instanceof OdooError) throw error;
     if (signal?.aborted) throw new OdooError("aborted", details);
@@ -189,6 +212,7 @@ function createOdooClient(settings) {
 
 module.exports = {
   DEFAULT_PAGE_SIZE,
+  MAX_RESPONSE_BYTES,
   OdooError,
   READ_METHODS,
   callOdoo,

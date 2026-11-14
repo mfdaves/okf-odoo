@@ -96,6 +96,7 @@ test("validateConfig reports every invalid key without echoing its value", () =>
     [{ url: "https://erp.example.com" }, "missing_api_key_env", "apiKeyEnv"],
     [{ ...BASE, url: "https://admin:hunter2@erp.example.com" }, "invalid_url", "url"],
     [{ ...BASE, url: "ftp://erp.example.com" }, "invalid_url", "url"],
+    [{ ...BASE, url: "http://erp.example.com" }, "invalid_url", "url"],
     [{ ...BASE, database: "a b" }, "invalid_database", "database"],
     [{ ...BASE, apiKeyEnv: "hunter2 key" }, "invalid_api_key_env", "apiKeyEnv"],
     [{ ...BASE, source: "erp/prod" }, "invalid_source", "source"],

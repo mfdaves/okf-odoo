@@ -1,6 +1,7 @@
 "use strict";
 
 const assert = require("node:assert/strict");
+const http = require("node:http");
 const test = require("node:test");
 const { OdooError, callOdoo, createOdooClient, normalizeBaseUrl } = require("../src/odoo");
 const { odooError, startFakeOdoo } = require("./support/fake-odoo");
@@ -189,9 +190,15 @@ test("search_read pages by id until a short page arrives", async (t) => {
   assert.deepEqual(server.requests[0].params.fields, ["model"]);
 });
 
-test("the base URL must be http or https without credentials, query, or fragment", () => {
+test("the base URL must be https, or http on loopback, without credentials, query, or fragment", () => {
   assert.equal(normalizeBaseUrl("https://erp.example.com/odoo/"), "https://erp.example.com/odoo");
+  assert.equal(normalizeBaseUrl("http://127.0.0.1:18069/"), "http://127.0.0.1:18069");
+  assert.equal(normalizeBaseUrl("http://localhost:8069"), "http://localhost:8069");
+  assert.equal(normalizeBaseUrl("http://[::1]:8069"), "http://[::1]:8069");
   for (const value of [
+    "http://erp.example.com",
+    "http://10.0.0.5:8069",
+    "http://127.0.0.1.example.com",
     "ftp://erp.example.com",
     "https://admin:secret@erp.example.com",
     "https://erp.example.com/?db=x",
@@ -200,4 +207,69 @@ test("the base URL must be http or https without credentials, query, or fragment
     assert.throws(() => normalizeBaseUrl(value), TypeError, value);
   }
   assert.throws(() => createOdooClient({ url: "https://u:p@erp.example.com", apiKey: "k" }));
+});
+
+test("the response size limit applies while the body streams", async (t) => {
+  let closed = false;
+  const server = http.createServer((request, response) => {
+    request.resume();
+    response.writeHead(200, { "Content-Type": "application/json" });
+    response.write("[");
+    // Never ends: a client that buffers before checking would wait for the timeout.
+    const timer = setInterval(() => response.write(`${JSON.stringify("x".repeat(1024))},`), 5);
+    response.on("close", () => {
+      closed = true;
+      clearInterval(timer);
+    });
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => {
+    server.closeAllConnections();
+    return new Promise((resolve) => server.close(resolve));
+  });
+  const url = `http://127.0.0.1:${server.address().port}`;
+  const started = Date.now();
+  await rejectsWith(
+    callOdoo({
+      url,
+      apiKey: "k",
+      model: "ir.model",
+      method: "search_read",
+      params: FIELDS,
+      timeoutMs: 10000,
+      maxResponseBytes: 16 * 1024,
+    }),
+    "response_too_large",
+  );
+  assert.ok(Date.now() - started < 2000, "stopped reading at the limit");
+  await new Promise((resolve) => setTimeout(resolve, 50));
+  assert.equal(closed, true, "the connection was released");
+});
+
+test("a declared Content-Length above the limit is refused before reading", async (t) => {
+  const server = http.createServer((request, response) => {
+    request.resume();
+    // Announces a large body and sends none: only the header can end the call.
+    response.writeHead(200, { "Content-Type": "application/json", "Content-Length": "1000000" });
+    response.flushHeaders();
+  });
+  await new Promise((resolve) => server.listen(0, "127.0.0.1", resolve));
+  t.after(() => {
+    server.closeAllConnections();
+    return new Promise((resolve) => server.close(resolve));
+  });
+  const started = Date.now();
+  await rejectsWith(
+    callOdoo({
+      url: `http://127.0.0.1:${server.address().port}`,
+      apiKey: "k",
+      model: "ir.model",
+      method: "search_read",
+      params: FIELDS,
+      timeoutMs: 10000,
+      maxResponseBytes: 1024,
+    }),
+    "response_too_large",
+  );
+  assert.ok(Date.now() - started < 2000);
 });
