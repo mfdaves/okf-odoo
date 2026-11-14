@@ -91,6 +91,7 @@ test("HTTP failures map to fixed codes without echoing server text", async (t) =
     "ir.model": odooError(422, "werkzeug.exceptions.UnprocessableEntity", secret),
     "ir.rule": odooError(500, "builtins.Exception", secret),
     "ir.ui.menu": { status: 404, contentType: "text/html", body: `<html>${secret}</html>` },
+    "ir.actions.server": { status: 303, contentType: "text/html", body: "<html></html>" },
     "res.groups": { status: 200, contentType: "text/html", body: "<html></html>" },
   };
   const server = await withServer(t, ({ model }) => replies[model]);
@@ -101,6 +102,7 @@ test("HTTP failures map to fixed codes without echoing server text", async (t) =
     "ir.model": "invalid_request",
     "ir.rule": "server_error",
     "ir.ui.menu": "json2_unavailable",
+    "ir.actions.server": "json2_unavailable",
     "res.groups": "invalid_response",
   };
   for (const [model, code] of Object.entries(expected)) {

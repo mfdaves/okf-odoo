@@ -66,7 +66,9 @@ test("validateConfig fills defaults for a minimal configuration", () => {
   assert.equal(result.valid, true);
   assert.deepEqual(result.config, {
     url: "https://erp.example.com",
+    api: "json2",
     database: null,
+    login: null,
     apiKeyEnv: "ODOO_API_KEY",
     source: "odoo",
     lang: "en_US",
@@ -98,6 +100,11 @@ test("validateConfig reports every invalid key without echoing its value", () =>
     [{ ...BASE, url: "ftp://erp.example.com" }, "invalid_url", "url"],
     [{ ...BASE, url: "http://erp.example.com" }, "invalid_url", "url"],
     [{ ...BASE, database: "a b" }, "invalid_database", "database"],
+    [{ ...BASE, api: "xmlrpc" }, "invalid_api", "api"],
+    [{ ...BASE, api: "jsonrpc", login: "okf" }, "missing_database", "database"],
+    [{ ...BASE, api: "jsonrpc", database: "erp" }, "missing_login", "login"],
+    [{ ...BASE, api: "jsonrpc", database: "erp", login: "a\nb" }, "invalid_login", "login"],
+    [{ ...BASE, login: "okf" }, "login_requires_jsonrpc", "login"],
     [{ ...BASE, apiKeyEnv: "hunter2 key" }, "invalid_api_key_env", "apiKeyEnv"],
     [{ ...BASE, source: "erp/prod" }, "invalid_source", "source"],
     [{ ...BASE, lang: "English" }, "invalid_lang", "lang"],
@@ -199,4 +206,19 @@ test("under okf-mcp the API key variable must be named in the configuration", {
   const preview = await named.service.preview("odoo");
   assert.equal(preview.readyToApply, true, JSON.stringify(preview.diagnostics));
   assert.ok(server.requests.length > 0);
+});
+
+test("generate reads the same catalog over JSON-RPC when api is jsonrpc", async (t) => {
+  const serve = fixtureHandler(loadFixture("19"));
+  const server = await startFakeOdoo(serve, {
+    jsonrpc: { database: "okf_live", login: "okf-reader", apiKey: API_KEY, uid: 5 },
+  });
+  t.after(() => server.close());
+  const { context } = contextFor(server, { api: "jsonrpc", login: "okf-reader" });
+  const overRpc = await generateOdoo(context);
+  const json2 = await fakeOdoo(t, "19");
+  const overJson2 = await generateOdoo(contextFor(json2).context);
+  assert.deepEqual(overRpc, overJson2);
+  assert.ok(server.requests.every((request) => request.url === "/jsonrpc"));
+  assert.equal(server.requests.filter((request) => request.rpc === "authenticate").length, 1);
 });

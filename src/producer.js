@@ -11,7 +11,9 @@ const { RELATION_TYPES, buildBundle, normalizeGeneratedAt } = require("./render"
 
 const CONFIG_KEYS = new Set([
   "url",
+  "api",
   "database",
+  "login",
   "apiKeyEnv",
   "source",
   "lang",
@@ -24,6 +26,7 @@ const ENV_NAME = /^[A-Za-z_][A-Za-z0-9_]*$/;
 const LANG = /^[a-z]{2,3}(_[A-Za-z0-9]{2,4})?(@[a-z]+)?$/;
 const MODULE_PATTERN = /^[a-z0-9_*]+$/;
 const OTHER_MODULES = new Set(["summary", "none"]);
+const APIS = new Set(["json2", "jsonrpc"]);
 
 function isPlainObject(value) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return false;
@@ -58,9 +61,25 @@ function validateConfig(value = {}) {
     }
   }
 
+  // The protocol is configured, never guessed: JSON-2 for Odoo 19 and later,
+  // JSON-RPC for Odoo 18, which also needs the database and the key's login.
+  const api = input.api === undefined ? "json2" : input.api;
+  if (!APIS.has(api)) report("invalid_api", "api", "api must be json2 or jsonrpc.");
+
   const database = input.database === undefined ? null : input.database;
   if (database !== null && (typeof database !== "string" || !IDENTIFIER.test(database))) {
     report("invalid_database", "database", "database must be an Odoo database name.");
+  } else if (database === null && api === "jsonrpc") {
+    report("missing_database", "database", "database is required with api jsonrpc.");
+  }
+
+  const login = input.login === undefined ? null : input.login;
+  if (login !== null && (typeof login !== "string" || !login.trim() || /\p{Cc}/u.test(login))) {
+    report("invalid_login", "login", "login must be the login of the API key's user.");
+  } else if (login === null && api === "jsonrpc") {
+    report("missing_login", "login", "login is required with api jsonrpc.");
+  } else if (login !== null && api !== "jsonrpc") {
+    report("login_requires_jsonrpc", "login", "login is used only with api jsonrpc.");
   }
 
   // Required: a host such as okf-mcp hands over only the secrets whose
@@ -143,7 +162,18 @@ function validateConfig(value = {}) {
 
   return {
     valid: diagnostics.length === 0,
-    config: { url, database, apiKeyEnv, source, lang, sections, modules, otherModules },
+    config: {
+      url,
+      api,
+      database,
+      login,
+      apiKeyEnv,
+      source,
+      lang,
+      sections,
+      modules,
+      otherModules,
+    },
     diagnostics,
   };
 }
@@ -203,8 +233,10 @@ async function generateOdoo(context = {}, dependencies = {}) {
   );
   const createClient = dependencies.createClient || createOdooClient;
   const client = createClient({
+    api: config.api,
     url: config.url,
     database: config.database,
+    login: config.login,
     apiKey,
     signal: context.signal,
   });

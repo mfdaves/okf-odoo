@@ -1,14 +1,18 @@
 "use strict";
 
-// Minimal client for Odoo's JSON-2 API (Odoo 19 and later): one POST per call
-// to /json/2/<model>/<method> with a bearer API key. Only read methods can be
-// called, reads must name the fields they want, and errors carry a fixed code
-// and message, never server text.
+// Minimal read-only Odoo client over one of two protocols, chosen by the
+// caller: JSON-2 (Odoo 19 and later), one POST per call to
+// /json/2/<model>/<method> with a bearer API key, or JSON-RPC (Odoo 18 and
+// later), `execute_kw` on /jsonrpc with the user id and the API key as
+// password. Either way only read methods can be called, reads must name the
+// fields they want, and errors carry a fixed code and message, never server
+// text.
 
 const READ_METHODS = new Set(["fields_get", "read", "search_read"]);
 // Holds system parameters, which may carry credentials; never metadata.
 const FORBIDDEN_MODELS = new Set(["ir.config_parameter"]);
 const FIELD_NAME = /^[a-z_][a-z0-9_]*$/;
+const APIS = new Set(["json2", "jsonrpc"]);
 const DEFAULT_TIMEOUT_MS = 30000;
 const DEFAULT_PAGE_SIZE = 500;
 const MAX_RESPONSE_BYTES = 32 * 1024 * 1024;
@@ -18,10 +22,11 @@ const MESSAGES = {
   aborted: "The Odoo request was aborted.",
   access_denied: "The Odoo API key's user may not read this metadata.",
   connection_failed: "The Odoo server could not be reached.",
-  invalid_api_key: "Odoo rejected the API key.",
+  invalid_api_key: "Odoo rejected the login or API key.",
   invalid_request: "Odoo rejected the request parameters.",
   invalid_response: "Odoo returned a response that is not JSON.",
   json2_unavailable: "The Odoo server offers no JSON-2 API for this database.",
+  jsonrpc_unavailable: "The Odoo server offers no JSON-RPC endpoint.",
   fields_required: "A read must name the fields it wants.",
   method_not_allowed: "Only read methods may be called.",
   model_not_allowed: "This Odoo model is never read.",
@@ -69,10 +74,12 @@ function isLoopback(hostname) {
 }
 
 // The JSON-2 dispatcher answers an unknown model or method with 404 and a JSON
-// error body; a server without the route (Odoo 18 and older, or no rpc module)
-// answers 404 with an HTML page, so only the content type tells them apart.
+// error body. A server without the route answers 404 with an HTML page (no rpc
+// module) or redirects to its login page (Odoo 18 and older).
 function errorForStatus(response, isJson, details) {
   const status = response.status;
+  if (status >= 300 && status < 400)
+    return new OdooError("json2_unavailable", { ...details, status });
   if (status === 401) return new OdooError("invalid_api_key", { ...details, status });
   if (status === 403) return new OdooError("access_denied", { ...details, status });
   if (status === 404) {
@@ -109,19 +116,9 @@ async function readBody(response, details, limit) {
   return Buffer.concat(chunks).toString("utf8");
 }
 
-async function callOdoo(options) {
-  const {
-    url,
-    database,
-    apiKey,
-    model,
-    method,
-    params = {},
-    signal,
-    timeoutMs = DEFAULT_TIMEOUT_MS,
-    maxResponseBytes = MAX_RESPONSE_BYTES,
-    fetch: fetchImpl = globalThis.fetch,
-  } = options || {};
+// Checks done before any request: a read method, a well-formed model that is
+// not refused, an explicit list of field names, a printable key.
+function checkRead({ model, method, params, apiKey }) {
   if (!READ_METHODS.has(method)) throw new OdooError("method_not_allowed", { model, method });
   if (typeof model !== "string" || !MODEL_NAME.test(model)) {
     throw new TypeError("The Odoo model name is malformed.");
@@ -141,28 +138,37 @@ async function callOdoo(options) {
   ) {
     throw new OdooError("fields_required", { model, method });
   }
-  const details = { model, method };
-  if (signal?.aborted) throw new OdooError("aborted", details);
+}
 
+// One JSON POST with the timeout, the caller's abort signal and the streamed
+// size limit. Transport failures become fixed codes.
+async function post(options, path, headers, payload, details) {
+  const {
+    url,
+    signal,
+    timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxResponseBytes = MAX_RESPONSE_BYTES,
+    fetch: fetchImpl = globalThis.fetch,
+  } = options;
+  if (signal?.aborted) throw new OdooError("aborted", details);
+  const endpoint = `${normalizeBaseUrl(url)}${path}`;
   const timeout = AbortSignal.timeout(timeoutMs);
   const combined = signal ? AbortSignal.any([signal, timeout]) : timeout;
-  const headers = {
-    Authorization: `bearer ${apiKey}`,
-    "Content-Type": "application/json; charset=utf-8",
-    Accept: "application/json",
-  };
-  if (database) headers["X-Odoo-Database"] = database;
-
-  const endpoint = `${normalizeBaseUrl(url)}/json/2/${model}/${method}`;
   let response;
   let text;
   try {
     response = await fetchImpl(endpoint, {
       method: "POST",
-      headers,
-      body: JSON.stringify(params),
+      headers: {
+        "Content-Type": "application/json; charset=utf-8",
+        Accept: "application/json",
+        ...headers,
+      },
+      body: JSON.stringify(payload),
       signal: combined,
-      redirect: "error",
+      // A redirect is never followed: Odoo answers a route it does not have
+      // with a redirect to its login page.
+      redirect: "manual",
     });
     text = await readBody(response, details, maxResponseBytes);
   } catch (error) {
@@ -171,15 +177,112 @@ async function callOdoo(options) {
     if (timeout.aborted) throw new OdooError("timeout", details);
     throw new OdooError("connection_failed", details);
   }
-
   const isJson = /^application\/json\b/i.test(response.headers.get("content-type") || "");
+  let body;
+  if (isJson) {
+    try {
+      body = JSON.parse(text);
+    } catch {
+      throw new OdooError("invalid_response", { ...details, status: response.status });
+    }
+  }
+  return { response, isJson, body };
+}
+
+async function callOdoo(options) {
+  const { database, apiKey, model, method, params = {} } = options || {};
+  checkRead({ model, method, params, apiKey });
+  const details = { model, method };
+  const headers = { Authorization: `bearer ${apiKey}` };
+  if (database) headers["X-Odoo-Database"] = database;
+  const { response, isJson, body } = await post(
+    options,
+    `/json/2/${model}/${method}`,
+    headers,
+    params,
+    details,
+  );
   if (!response.ok) throw errorForStatus(response, isJson, details);
   if (!isJson) throw new OdooError("invalid_response", { ...details, status: response.status });
-  try {
-    return JSON.parse(text);
-  } catch {
+  return body;
+}
+
+// JSON-RPC reports every failure as HTTP 200 with an error object naming the
+// exception class; only that name is used, never the message.
+const RPC_ERRORS = {
+  "odoo.exceptions.AccessError": "access_denied",
+  "odoo.exceptions.AccessDenied": "invalid_api_key",
+  "odoo.exceptions.UserError": "invalid_request",
+  "odoo.exceptions.ValidationError": "invalid_request",
+  "odoo.exceptions.MissingError": "invalid_request",
+  "builtins.AttributeError": "invalid_request",
+  "builtins.KeyError": "invalid_request",
+  "builtins.TypeError": "invalid_request",
+  "builtins.ValueError": "invalid_request",
+};
+
+let rpcId = 0;
+
+async function rpc(options, service, method, args, details) {
+  rpcId += 1;
+  const { response, isJson, body } = await post(
+    options,
+    "/jsonrpc",
+    {},
+    { jsonrpc: "2.0", method: "call", params: { service, method, args }, id: rpcId },
+    details,
+  );
+  if (!response.ok) {
+    const missing =
+      (response.status >= 300 && response.status < 400) || (response.status === 404 && !isJson);
+    const code = missing ? "jsonrpc_unavailable" : "server_error";
+    throw new OdooError(code, { ...details, status: response.status });
+  }
+  if (!isJson || !body || typeof body !== "object") {
     throw new OdooError("invalid_response", { ...details, status: response.status });
   }
+  if (body.error) {
+    const name = typeof body.error?.data?.name === "string" ? body.error.data.name : "";
+    throw new OdooError(RPC_ERRORS[name] || "server_error", details);
+  }
+  return body.result;
+}
+
+function checkJsonRpcSettings({ database, login }) {
+  if (typeof database !== "string" || !/^[A-Za-z0-9_.-]+$/.test(database)) {
+    throw new TypeError("JSON-RPC needs the database name.");
+  }
+  if (typeof login !== "string" || !login || /[\p{Cc}]/u.test(login)) {
+    throw new TypeError("JSON-RPC needs the login of the API key's user.");
+  }
+}
+
+// Resolves the user id once per client through service `common`.
+async function authenticateJsonRpc(options) {
+  const { database, login, apiKey } = options;
+  checkJsonRpcSettings(options);
+  const uid = await rpc(options, "common", "authenticate", [database, login, apiKey, {}], {
+    method: "authenticate",
+  });
+  if (!Number.isInteger(uid) || uid <= 0) {
+    throw new OdooError("invalid_api_key", { method: "authenticate" });
+  }
+  return uid;
+}
+
+async function callJsonRpc(options) {
+  const { database, apiKey, model, method, params = {}, uid } = options || {};
+  checkRead({ model, method, params, apiKey });
+  checkJsonRpcSettings(options);
+  const userId = typeof uid === "function" ? await uid() : uid;
+  if (!Number.isInteger(userId)) throw new TypeError("JSON-RPC needs the user id.");
+  return rpc(
+    options,
+    "object",
+    "execute_kw",
+    [database, userId, apiKey, model, method, [], params],
+    { model, method },
+  );
 }
 
 // Binds connection settings once and pages search_read by id so a large
@@ -187,8 +290,21 @@ async function callOdoo(options) {
 function createOdooClient(settings) {
   const base = { ...settings };
   normalizeBaseUrl(base.url);
+  const api = base.api || "json2";
+  if (!APIS.has(api)) throw new TypeError("api must be json2 or jsonrpc.");
   const pageSize = base.pageSize || DEFAULT_PAGE_SIZE;
-  const call = (model, method, params) => callOdoo({ ...base, model, method, params });
+  let call;
+  if (api === "json2") {
+    call = (model, method, params) => callOdoo({ ...base, model, method, params });
+  } else {
+    checkJsonRpcSettings(base);
+    let session = null;
+    const uid = () => {
+      session ??= authenticateJsonRpc(base);
+      return session;
+    };
+    call = (model, method, params) => callJsonRpc({ ...base, model, method, params, uid });
+  }
   return {
     call,
     fieldsGet(model, attributes) {
@@ -215,6 +331,8 @@ module.exports = {
   MAX_RESPONSE_BYTES,
   OdooError,
   READ_METHODS,
+  authenticateJsonRpc,
+  callJsonRpc,
   callOdoo,
   createOdooClient,
   normalizeBaseUrl,
