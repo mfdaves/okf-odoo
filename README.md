@@ -1,8 +1,9 @@
 # okf-odoo
 
-`okf-odoo` reads the technical metadata of an Odoo 19 or 20 database over
-Odoo's JSON-2 API and produces an Open Knowledge Format v0.2 bundle with
-explicit generation provenance.
+`okf-odoo` reads the technical metadata of an Odoo 18, 19 or 20 database
+over Odoo's JSON-2 API (Odoo 19 and later) or JSON-RPC (Odoo 18) and
+produces an Open Knowledge Format v0.2 bundle with explicit generation
+provenance.
 
 It documents installed modules and their dependencies, models with their
 fields and selection values, access rights and record rules, groups and the
@@ -19,8 +20,12 @@ validates the candidate bundle and publishes it through
 ## Requirements
 
 - Node.js 22 or newer and `@mfdaves/okf-mcp` with Producer API v1.
-- Odoo 19 or 20. The JSON-2 endpoint `/json/2/<model>/<method>` comes from
-  the `rpc` module, which Odoo installs automatically.
+- Odoo 18, 19 or 20. On 19 and 20 the producer uses the JSON-2 endpoint
+  `/json/2/<model>/<method>` from the `rpc` module, which Odoo installs
+  automatically. Odoo 18 has no JSON-2 API; set `api: jsonrpc` and the
+  producer calls `execute_kw` on `/jsonrpc` with the user's login, resolved
+  once per run, and the API key as password. The protocol is configured,
+  never guessed.
 - An Odoo API key (as the user interface creates them, or with the `rpc`
   scope) of a user allowed to read the selected sections.
 
@@ -28,13 +33,15 @@ validates the candidate bundle and publishes it through
 
 What a key can read depends on its user's groups. Group names shown in the
 tables are resolved through `res.groups` and `ir.model.data`, so every
-section that shows groups reads those too. Measured on Odoo 19 and 20:
+section that shows groups reads those too. Every run also reads the installed
+version of `base`, which any internal user can, to pick the field names of
+that Odoo version. Measured on Odoo 18, 19 and 20:
 
 | Section | Odoo models read | Lowest group that can read it |
 | --- | --- | --- |
-| `modules` | `ir.module.module`, `ir.module.module.dependency` | Internal user |
+| `modules` | `ir.module.module`, `ir.module.module.dependency` | Internal user (Settings on Odoo 18, where only administrators read module dependencies) |
 | `models` | `ir.model`, `ir.model.data`, `ir.model.fields`, `ir.model.fields.selection`, `res.groups` | Administration: Access Rights |
-| `access` | `ir.access` (Odoo 20) or `ir.model.access` and `ir.rule` (Odoo 19), `res.groups`, `ir.model.data` | Administration: Access Rights |
+| `access` | `ir.access` (Odoo 20) or `ir.model.access` and `ir.rule` (Odoo 18 and 19), `res.groups`, `ir.model.data` | Administration: Access Rights |
 | `groups` | `res.groups`, `ir.model.data` | Administration: Access Rights |
 | `reports` | `ir.actions.report`, `res.groups`, `ir.model.data` | Administration: Access Rights |
 | `menus` | `ir.ui.menu`, `ir.actions.act_window`, `res.groups`, `ir.model.data` | Administration: Settings |
@@ -89,7 +96,7 @@ producers:
     config:
       url: https://odoo.example.com
       database: production
-      apiKeyEnv: ODOO_API_KEY
+      apiKeyEnv: ODOO_API_KEY       # on Odoo 18 add: api: jsonrpc, login: okf-reader
       source: odoo-production
       modules:
         include: ["x_*"]
@@ -101,7 +108,9 @@ producers:
 | Key | Default | Meaning |
 | --- | --- | --- |
 | `url` | required | Base URL of the Odoo server without credentials, query or fragment. It must use `https`, except for a loopback host (`localhost`, `127.0.0.0/8`, `[::1]`), because the API key travels as a bearer token. |
-| `database` | none | Sent as the `X-Odoo-Database` header; needed when the server hosts several databases. |
+| `api` | `json2` | `json2` for Odoo 19 and 20, `jsonrpc` for Odoo 18 (JSON-RPC also works on 19 and 20). |
+| `database` | none; required with `jsonrpc` | With `json2`, sent as the `X-Odoo-Database` header and needed when the server hosts several databases; with `jsonrpc`, the database of every call. |
+| `login` | required with `jsonrpc`, refused with `json2` | Login of the API key's user, used once per run to resolve its user id. |
 | `apiKeyEnv` | required | Name of the environment variable that holds the API key. The host hands a producer only the variables its configuration names. |
 | `source` | `odoo` | Stable, non-secret alias used in `odoo://` resource locators and in the index title. |
 | `lang` | `en_US` | Language of labels, help texts and menu names. |
@@ -133,8 +142,10 @@ actions and files.
 
 `okf-mcp` reports any exception from a producer as `producer_execution_failed`.
 The specific code (`access_denied` with its `section`, `invalid_api_key`,
-`model_not_found`, `json2_unavailable`, `timeout`, `connection_failed`) is on
-the error `generate()` throws when it is called directly.
+`model_not_found`, `json2_unavailable`, `jsonrpc_unavailable`,
+`unsupported_odoo_version`, `timeout`, `connection_failed`) is on the error
+`generate()` throws when it is called directly. Pointing `api: json2` at
+Odoo 18 reports `json2_unavailable`.
 
 ## Output
 
@@ -149,9 +160,12 @@ apps/<xmlid>.md          a top-level menu, its submenus and the models they open
 ```
 
 Field-level groups come from `ir.model.fields.groups`. Odoo 20 records them
-for every field; Odoo 19 leaves them empty for fields defined in code, so on
-Odoo 19 each model concept states that field groups are not available
-instead of showing every field as unrestricted.
+for every field; Odoo 18 and 19 leave them empty for fields defined in code,
+so on those versions each model concept states that field groups are not
+available instead of showing every field as unrestricted. Odoo 18 does not
+record which models are abstract, so their kind reads "model or abstract
+model", and it groups access groups by application category, shown as
+*Application* where 19 and 20 show the *Privilege*.
 
 Groups and menus created in the database have no XML id and are named
 `group-<id>` and `menu-<id>`. A name made of anything but lowercase letters,
@@ -218,15 +232,17 @@ npm run self:validate
 npm run pack:check
 ```
 
-The unit tests replay JSON-2 responses recorded from Odoo 19 and 20 with
+The unit tests replay responses recorded from Odoo 18 (JSON-RPC), 19 and 20
+(JSON-2) with
 `base` and `sale` installed (`test/fixtures/odoo-<version>/calls.json`) and
 compare the result with committed snapshots; `UPDATE_SNAPSHOTS=1 npm test`
 rewrites them. `npm run smoke` and `npm run self:validate` need the sibling
 `../okf-mcp` checkout; the smoke publishes the recordings through okf-mcp's
 producer host and checks that a second run is unchanged.
 
-The live gates run against a disposable Odoo in Docker (ports 18069 for 19
-and 18070 for 20):
+The live gates run against a disposable Odoo in Docker (ports 18068 for 18,
+18069 for 19 and 18070 for 20). The script prints the protocol, the logins
+and the API keys of two technical users:
 
 ```bash
 scripts/live-odoo.sh up 19 > odoo.env   # holds the API keys; ignored by Git
@@ -240,8 +256,8 @@ scripts/live-odoo.sh down
 `live:shape` compares the server's field types, requests and row shapes with
 the recorded fixture. `live:smoke` publishes through `okf producer preview`
 and `run` with the package linked into a project, checks the second run is
-unchanged, and checks that a key of an Access Rights manager fails on the
-`menus`, `crons` and `serverActions` sections.
+unchanged, and reads each section with the key of an Access Rights manager,
+expecting exactly the denials of the table above.
 
 ## Release
 

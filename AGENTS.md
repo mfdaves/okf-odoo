@@ -4,8 +4,8 @@
 
 `okf-odoo` is a read-only Odoo metadata producer. It reads the technical
 catalog of an Odoo database (modules, models, fields, access rules, groups,
-menus, scheduled jobs, reports, server actions) over Odoo's JSON-2 API and
-returns Open Knowledge Format v0.2 candidate files to a producer host such as
+menus, scheduled jobs, reports, server actions) of Odoo 18, 19 and 20 over
+JSON-2 or, as configured, JSON-RPC, and returns Open Knowledge Format v0.2 candidate files to a producer host such as
 `okf-mcp`. It never reads business records, `ir.config_parameter` values or
 server-action code, and never calls a method that writes.
 
@@ -15,7 +15,9 @@ examples.
 
 ## Implementation
 
-- Keep the JSON-2 client, catalog reading, and OKF rendering separate.
+- Keep the Odoo client (both protocols), catalog reading, Markdown escaping
+  and OKF rendering separate. Field names that differ between Odoo versions
+  live in `VERSIONS` in `src/catalog.js`, measured on a live server.
 - Publication belongs to the host: there is no standalone writer or CLI.
 - Output must be deterministic: stable ordering and paths, no volatile values
   other than `generated.at`, so an unchanged database reports `unchanged`.

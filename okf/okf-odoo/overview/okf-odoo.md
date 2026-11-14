@@ -29,8 +29,8 @@ relations:
 
 # okf-odoo
 
-`okf-odoo` reads the technical catalog of an Odoo 19 or 20 database over the
-JSON-2 API: installed modules, models, fields and selection values, access
+`okf-odoo` reads the technical catalog of an Odoo 18, 19 or 20 database over
+the JSON-2 API or, for Odoo 18, JSON-RPC: installed modules, models, fields and selection values, access
 rights and record rules, groups, menus and the models they open, scheduled
 jobs, reports and, on request, server actions. It never reads business
 records, system parameter values or server-action code, and only calls
@@ -42,7 +42,10 @@ environment variable, validates the candidate files and publishes them. The
 JSON-2 client, the catalog reader, the renderer and the producer descriptor
 are separate modules.
 
-Version differences are handled in the catalog reader: Odoo 20 merges access
+Version differences are handled in the catalog reader, which reads the
+installed version of `base` and uses that version's field names: Odoo 18
+groups access groups by application category and records neither abstract
+models nor the kind of translation, and Odoo 20 merges access
 rights and record rules into `ir.access`, and stores the index kind of a field
 where Odoo 19 stores a boolean. The rendered output is a pure function of the
 catalog, so an unchanged database republishes no file.

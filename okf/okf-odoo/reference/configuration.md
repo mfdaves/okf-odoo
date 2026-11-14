@@ -18,7 +18,11 @@ The producer configuration lives under `producers[].config` in
 
 - `url` (required): base URL of the Odoo server without credentials, query or
   fragment; `https`, or `http` for a loopback host only.
-- `database`: database name sent as the `X-Odoo-Database` header.
+- `api` (default `json2`): `json2` for Odoo 19 and 20, `jsonrpc` for Odoo 18.
+- `database`: database name; the `X-Odoo-Database` header with `json2`,
+  required and part of every call with `jsonrpc`.
+- `login`: login of the API key's user; required with `jsonrpc`, refused with
+  `json2`.
 - `apiKeyEnv` (required): environment variable holding the API key; the host
   hands a producer only the variables its configuration names.
 - `source` (default `odoo`): alias used in `odoo://` resource locators.
