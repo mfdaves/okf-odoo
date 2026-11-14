@@ -140,7 +140,8 @@ the error `generate()` throws when it is called directly.
 
 ```text
 index.md                 links to every concept below
-modules/<name>.md        version, category, dependencies, models defined and extended
+modules/<name>.md        installed version (and the version on disk when it differs), category,
+                         dependencies, models defined and extended
 models/<model>.md        fields, selection values, access, scheduled jobs, reports, server actions
 groups/<xmlid>.md        implied groups, groups implying it, access on documented models
 apps/<xmlid>.md          a top-level menu, its submenus and the models they open

@@ -340,7 +340,8 @@ test("rendering covers every section and escapes untrusted text", () => {
   );
 
   const shop = files.get("modules/x_shop.md");
-  assert.match(shop, /Version on disk: `20\.0\.1\.1` \(an upgrade is pending\)/);
+  assert.match(shop, /Version on disk: `20\.0\.1\.1` \(differs from the installed version\)/);
+  assert.doesNotMatch(shop, /upgrade/);
   assert.match(shop, /- `missing_module`/);
   assert.deepEqual(frontmatter(shop).relations, [
     { type: "depends_on", target: "okf://erp/modules/base" },

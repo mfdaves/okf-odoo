@@ -161,7 +161,7 @@ class Renderer {
       `- Technical name: ${codeSpan(module.name)}`,
       `- Installed version: ${codeSpan(module.version)}`,
       module.diskVersion && module.diskVersion !== module.version
-        ? `- Version on disk: ${codeSpan(module.diskVersion)} (an upgrade is pending)`
+        ? `- Version on disk: ${codeSpan(module.diskVersion)} (differs from the installed version)`
         : null,
       module.category ? `- Category: ${inline(module.category)}` : null,
       `- Application: ${module.application ? "yes" : "no"}`,
