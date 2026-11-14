@@ -21,13 +21,22 @@ const RELATION_TYPES = Object.freeze([
 const OPERATIONS = { c: "create", r: "read", u: "update", d: "delete" };
 const IDENTIFIER = /^[A-Za-z0-9_.-]+$/;
 
-// A path segment that names one file on every file system. Only a lowercase
-// name made of safe characters is used as is; anything else, including a name
-// that differs from another only by case on macOS or Windows, gets a short
-// hash of the original appended.
+// index.md and log.md are reserved by OKF in every directory of a bundle.
+const RESERVED_BASENAMES = new Set(["index", "log"]);
+
+// A path segment that names one file on every file system and is never a
+// reserved basename. Only a lowercase name made of safe characters is used as
+// is; anything else, including a name that differs from another only by case
+// on macOS or Windows, gets a short hash of the original appended.
 function safeSegment(value) {
   const original = String(value).toWellFormed().normalize("NFC");
-  if (/^[a-z0-9][a-z0-9_.-]*$/.test(original) && !original.endsWith(".")) return original;
+  if (
+    /^[a-z0-9][a-z0-9_.-]*$/.test(original) &&
+    !original.endsWith(".") &&
+    !RESERVED_BASENAMES.has(original)
+  ) {
+    return original;
+  }
   const base = original.replace(/[^A-Za-z0-9_.-]+/g, "-").replace(/^[.-]+|[.-]+$/g, "") || "object";
   const digest = crypto.createHash("sha256").update(original).digest("hex").slice(0, 8);
   return `${base}--${digest}`;

@@ -155,7 +155,8 @@ instead of showing every field as unrestricted.
 Groups and menus created in the database have no XML id and are named
 `group-<id>` and `menu-<id>`. A name made of anything but lowercase letters,
 digits, `_`, `.` and `-` gets a short hash appended to its file name, so two
-names that differ only by case stay apart on case-insensitive file systems. Typed relations: a model is `defined_in` the
+names that differ only by case stay apart on case-insensitive file systems.
+The same applies to `index` and `log`, whose file names OKF reserves. Typed relations: a model is `defined_in` the
 module that registered it first and `extended_by` the others, and
 `references` the models its relational fields point to; a module
 `depends_on` its dependencies; a group `implies` other groups; an application

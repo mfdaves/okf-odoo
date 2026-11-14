@@ -388,6 +388,33 @@ test("names differing only by case get paths that differ without case", () => {
   if (siblingAvailable()) assert.equal(validateWithOkfMcp(files).status, 0);
 });
 
+test("modules named index or log do not take the reserved file names", () => {
+  for (const name of ["index", "log", "INDEX", "Log"]) {
+    assert.match(safeSegment(name), new RegExp(`^${name}--[a-f0-9]{8}$`));
+  }
+  const catalog = syntheticCatalog();
+  catalog.modules.push(
+    { ...catalog.modules[1], name: "index", title: "Index", selected: false },
+    { ...catalog.modules[1], name: "log", title: "Log", selected: false },
+  );
+  catalog.modules[0].dependencies.push("index", "log");
+  const files = buildBundle(catalog, OPTIONS);
+  const modules = [...files.keys()].filter((file) => file.startsWith("modules/"));
+  assert.ok(
+    modules.every((file) => !/\/(index|log)\.md$/.test(file)),
+    modules.join(" "),
+  );
+  assert.equal(
+    modules.filter((file) => /^modules\/(index|log)--[a-f0-9]{8}\.md$/.test(file)).length,
+    2,
+  );
+  assert.deepEqual(unresolved(files), []);
+  if (siblingAvailable()) {
+    const outcome = validateWithOkfMcp(files);
+    assert.equal(outcome.status, 0, JSON.stringify(outcome.result?.diagnostics));
+  }
+});
+
 test("two concepts on one path, with or without case, are refused", () => {
   const same = syntheticCatalog();
   same.groups.push({ ...same.groups[1] });
