@@ -158,6 +158,10 @@ test("the pack declares API v1, id odoo and six read-only tools", () => {
   assert.match(group.description, /only the records the user may read/);
   assert.match(read.description, /odoo_describe_model/);
   assert.match(read.description, /silently left out/);
+  assert.match(search.description, /child_of and parent_of are not available/);
+  assert.match(search.description, /related record's display name/);
+  assert.match(search.description, /refused with invalid_params/);
+  assert.doesNotMatch(JSON.stringify(search.inputSchema), /child_of|parent_of/);
   assert.match(search.description, /at most 4 fields/);
   assert.match(group.description, /at most 4 fields/);
   assert.match(group.description, /\[id, display name\], a date bucket as \[start, label\]/);
@@ -348,6 +352,8 @@ test("without a subject token, valid arguments, config or credentials nothing is
     ["odoo_group", { ...ARGS.odoo_group, aggregates: ["name:array_agg"] }],
     ["odoo_group", { ...ARGS.odoo_group, order: "amount_total:sum desc; drop" }],
     ["odoo_search", { ...ARGS.odoo_search, domain: [["a.b.c.d.e", "=", 1]] }],
+    ["odoo_search", { ...ARGS.odoo_search, domain: [["parent_id", "child_of", 1]] }],
+    ["odoo_group", { ...ARGS.odoo_group, domain: [["parent_id", "parent_of", 1]] }],
     ["odoo_search", { ...ARGS.odoo_search, order: "partner_id.name desc" }],
     ["odoo_search", { ...ARGS.odoo_search, order: "amount_total:sum" }],
     ["odoo_group", { ...ARGS.odoo_group, limit: 501 }],

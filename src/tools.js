@@ -42,8 +42,6 @@ const OPERATORS = [
   "not ilike",
   "=like",
   "=ilike",
-  "child_of",
-  "parent_of",
   "any",
   "not any",
 ];
@@ -179,7 +177,8 @@ const TOOLS = [
       "Search records of one Odoo model and return the requested fields of each.",
       LOOK_UP_FIRST,
       'The domain is a list of [field, operator, value] conditions that must all hold; put "|" before two conditions for OR. Examples: [["state", "=", "done"], ["date", ">=", "2026-01-01"]] and ["|", ["name", "ilike", "chair"], ["default_code", "=", "A100"]].',
-      "Operators: =, !=, >, >=, <, <=, in, not in, like, ilike, not ilike, =like, =ilike, child_of, parent_of, any. A field path follows at most 4 fields (partner_id.country_id.code). A many2one value comes back as [id, display name].",
+      'Operators: =, !=, >, >=, <, <=, in, not in, like, ilike, not ilike, =like, =ilike, any; the hierarchy operators child_of and parent_of are not available. A text condition on a relation, such as ["partner_id", "ilike", "north"], matches the related record\'s display name among records the user may read; compare ids for exact matches. A field path follows at most 4 fields (partner_id.country_id.code). A many2one value comes back as [id, display name].',
+      "On models whose reads hide part of a record (such as private calendar events), filters, sorting and grouping may use only id and the public fields; others are refused with invalid_params.",
       "count is the number of matching records; truncated is true when more exist than limit (at most 200); page with offset. For totals use odoo_group instead of adding up pages.",
       RIGHTS,
     ].join(" "),
