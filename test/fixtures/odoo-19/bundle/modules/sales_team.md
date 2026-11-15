@@ -10,7 +10,7 @@ sources:
   - resource: odoo://erp/ir.module.module.dependency
     title: erp ir.module.module.dependency
 generated:
-  by: okf-odoo/0.1.0
+  by: okf-odoo/0.1.1
   at: '2026-11-14T10:00:00.000Z'
 tags:
   - odoo

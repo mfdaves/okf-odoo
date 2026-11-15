@@ -46,7 +46,8 @@ jobs:
             okf-odoo/package-lock.json
             okf-mcp/package-lock.json
 
-      - run: npm install --global "npm@^11.5.1"
+      # npm 12: `npm stage publish`, which the trusted publisher allows.
+      - run: npm install --global "npm@^12.2.2"
       - run: npm --version
 
       - run: npm ci
@@ -67,7 +68,7 @@ jobs:
       - run: npm run pack:check
         working-directory: okf-odoo
 
-      - name: Verify release identity and publish
+      - name: Verify release identity and stage the release
         shell: bash
         working-directory: okf-odoo
         env:
@@ -92,4 +93,6 @@ jobs:
             echo "The latest tag cannot publish a prerelease version." >&2
             exit 1
           fi
-          npm publish --access public --provenance --tag "${NPM_DIST_TAG}"
+          # Staged, not public: a maintainer approves it with 2FA
+          # (`npm stage approve` or npmjs.com) before it is published.
+          npm stage publish --access public --provenance --tag "${NPM_DIST_TAG}"

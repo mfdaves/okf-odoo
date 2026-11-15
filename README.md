@@ -361,8 +361,12 @@ expecting exactly the denials of the table above.
 
 ## Release
 
-Releases are published by the Release workflow from a dispatched tag with
-npm provenance, through the trusted publisher configured on npm. npm cannot
-configure a trusted publisher for a package that does not exist yet, so the
-first version is published once by hand (`npm publish --access public`) and
-the trusted publisher is configured afterwards.
+Releases go through the Release workflow, dispatched with a tag `vX.Y.Z`
+that matches `package.json` and an npm dist tag (`next` for prereleases,
+`latest` otherwise). After the same checks as CI, it stages the package with
+`npm stage publish` (npm 12) and npm provenance, through the trusted
+publisher configured on npm, which allows staging only. A staged version is
+not public: a maintainer approves it with two-factor authentication, with
+`npm stage approve <stage-id>` or on npmjs.com, and only then is it
+published. 0.1.0 was published by hand, because npm cannot configure a
+trusted publisher for a package that does not exist yet.

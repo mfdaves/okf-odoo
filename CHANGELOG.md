@@ -2,6 +2,14 @@
 
 All notable changes to `@mfdaves/okf-odoo`. The format follows Keep a Changelog; versions follow SemVer.
 
+## 0.1.1 — 2026-11-15
+
+No runtime change.
+
+### Changed
+
+- The Release workflow stages each version with `npm stage publish` (npm 12) through the trusted publisher, with provenance; a maintainer approves the staged version with two-factor authentication before it is public. 0.1.1 is the first version released this way and the first with npm provenance (0.1.0 was published by hand).
+
 ## 0.1.0 — 2026-11-15
 
 First release: a Producer API v1 producer that reads Odoo 18, 19 and 20 metadata over the JSON-2 API or JSON-RPC and returns an OKF v0.2 bundle to a host such as `okf-mcp`.
