@@ -24,7 +24,9 @@ signed-in user.
 
 ## Requirements
 
-- Node.js 22 or newer and `@mfdaves/okf-mcp` with Producer API v1.
+- Node.js 22 or newer and `@mfdaves/okf-mcp` 0.13.0-rc.1 or newer
+  (Producer API v1 and, for the data tools, tool-pack API v1), published
+  under npm's `next` tag.
 - Odoo 18, 19 or 20. On 19 and 20 the producer uses the JSON-2 endpoint
   `/json/2/<model>/<method>` from the `rpc` module, which Odoo installs
   automatically. Odoo 18 has no JSON-2 API; set `api: jsonrpc` and the
@@ -74,7 +76,7 @@ silently; remove the section from `sections` to publish without it.
 Install the producer next to the host in the project that owns the bundle:
 
 ```bash
-npm install @mfdaves/okf-mcp @mfdaves/okf-odoo
+npm install @mfdaves/okf-mcp@next @mfdaves/okf-odoo
 ```
 
 ## Configure

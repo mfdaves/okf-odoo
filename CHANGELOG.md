@@ -2,7 +2,7 @@
 
 All notable changes to `@mfdaves/okf-odoo`. The format follows Keep a Changelog; versions follow SemVer.
 
-## 0.1.0 — unreleased
+## 0.1.0 — 2026-11-15
 
 First release: a Producer API v1 producer that reads Odoo 18, 19 and 20 metadata over the JSON-2 API or JSON-RPC and returns an OKF v0.2 bundle to a host such as `okf-mcp`.
 
