@@ -2,13 +2,13 @@
 
 All notable changes to `@mfdaves/okf-odoo`. The format follows Keep a Changelog; versions follow SemVer.
 
-## 0.1.1 — 2026-11-15
+## 0.1.2 — 2026-11-15
 
 No runtime change.
 
 ### Changed
 
-- The Release workflow stages each version with `npm stage publish` (npm 12) through the trusted publisher, with provenance; a maintainer approves the staged version with two-factor authentication before it is public. 0.1.1 is the first version released this way and the first with npm provenance (0.1.0 was published by hand).
+- The Release workflow publishes each version with `npm publish` through the trusted publisher, with npm provenance. 0.1.2 is the first version released this way and the first with npm provenance (0.1.0 was published by hand). 0.1.1 was staged with `npm stage publish` and never published.
 
 ## 0.1.0 — 2026-11-15
 

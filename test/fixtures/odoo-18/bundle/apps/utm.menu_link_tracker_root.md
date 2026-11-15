@@ -10,7 +10,7 @@ sources:
   - resource: odoo://erp/ir.actions.act_window
     title: erp ir.actions.act_window
 generated:
-  by: okf-odoo/0.1.1
+  by: okf-odoo/0.1.2
   at: '2026-11-14T10:00:00.000Z'
 tags:
   - odoo
