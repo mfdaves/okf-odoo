@@ -26,6 +26,7 @@ First release: a Producer API v1 producer that reads Odoo 18, 19 and 20 metadata
 - `odoo_sql` (scope `odoo.sql`): one read-only SQL statement through the data API's `sql` operation, limit 1–1000 (default 100), with an output schema for columns, rows, truncation, elapsed time and copied tables; `query_error` passes PostgreSQL's `sqlstate`, `position` and `message` (at most 500 characters) on in `details`; new codes `too_many_requests` and `unavailable`. `odoo_describe_model` documents the model's `table` when the server returns it.
 - Tool pack tools declare `requiresSubjectToken: true`; argument errors carry the offending parameter in `details` (`field`, `path`); the default per-call timeout is 25 s, below okf-mcp's 30 s.
 - The tool pack's schemas follow the data API's limits: aggregates `sum`, `avg`, `min`, `max`, `count`, `count_distinct` and `__count` only, field paths of at most 4 fields, plain field names in search orders; descriptions state the group value formats and that `odoo_read` silently leaves out missing or unreadable ids.
+- A call the data API refuses with `too_many_requests` (the user's SQL slots or the sandbox's connections all taken) waits and is sent again, after 250 ms, 500 ms, then every second, for up to 12 s and never past the point that leaves the last attempt 5 s of the call's `timeoutMs`; the wait happens in the host and holds no Odoo worker. A refusal that outlasts it carries a hint to send the queries one after another, and `odoo_sql`'s description says so.
 
 ### Known issues
 

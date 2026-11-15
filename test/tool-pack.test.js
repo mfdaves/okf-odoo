@@ -547,7 +547,7 @@ test("odoo_sql teaches its rules and defaults to 100 rows", async (t) => {
     /instead of SELECT \*/,
     /\\x… hexadecimal for bytea/,
     /0A000.*42601.*42P01/,
-    /at most two queries at once/,
+    /waits up to about 12 seconds for its turn/,
   ]) {
     assert.match(sql.description, pattern);
   }
@@ -631,8 +631,61 @@ test("odoo_sql passes on PostgreSQL's answer, bounded, and the SQL-only codes", 
     [403, "insufficient_scope"],
   ]) {
     next = { status, body: { error: { code, message: `SENTINEL ${TOKEN}` } } };
-    await rejectsWith(sql.handler(ARGS.odoo_sql, context(server.url)), code);
+    // A busy server is waited for (next test); here the wait is off.
+    const handler = status === 429 ? createOdooToolPack({ busyWaitMs: 0 }).tools.odoo_sql : sql;
+    await rejectsWith(handler.handler(ARGS.odoo_sql, context(server.url)), code);
   }
+});
+
+test("a query refused as too_many_requests waits for a free slot and is sent again", async (t) => {
+  const busy = { status: 429, body: { error: { code: "too_many_requests", message: "m" } } };
+  let refusals = 0;
+  const server = await fakeDataApi(t, () =>
+    refusals-- > 0 ? busy : { body: { result: RESULTS.sql } },
+  );
+  const sql = okfToolPack.tools.odoo_sql;
+  // Two refusals, then a free slot: the caller sees the result, after 250 + 500 ms.
+  refusals = 2;
+  let started = Date.now();
+  assert.deepEqual(await sql.handler(ARGS.odoo_sql, context(server.url)), RESULTS.sql);
+  assert.equal(server.requests.length, 3);
+  assert.ok(Date.now() - started >= 700);
+  // Busy for longer than the wait: the refusal comes back with a hint.
+  const shortWait = createOdooToolPack({ busyWaitMs: 1000 }).tools.odoo_sql;
+  server.requests.length = 0;
+  refusals = Infinity;
+  await assert.rejects(shortWait.handler(ARGS.odoo_sql, context(server.url)), (error) => {
+    assert.equal(error.code, "too_many_requests");
+    assert.match(error.details.hint, /one after another/);
+    return true;
+  });
+  assert.equal(server.requests.length, 3);
+  // No retry when it would leave the last attempt less than 5 s of the time limit.
+  server.requests.length = 0;
+  const tight = context(server.url);
+  tight.config = { ...tight.config, timeoutMs: 5000 };
+  await rejectsWith(sql.handler(ARGS.odoo_sql, tight), "too_many_requests");
+  assert.equal(server.requests.length, 1);
+  // An abort ends the wait at once.
+  server.requests.length = 0;
+  const controller = new AbortController();
+  started = Date.now();
+  setTimeout(() => controller.abort(), 100);
+  await rejectsWith(
+    sql.handler(ARGS.odoo_sql, context(server.url, { signal: controller.signal })),
+    "aborted",
+  );
+  assert.ok(Date.now() - started < 1000);
+  assert.equal(server.requests.length, 1);
+  // Other refusals are final.
+  server.requests.length = 0;
+  refusals = 0;
+  const unavailable = await fakeDataApi(t, () => ({
+    status: 503,
+    body: { error: { code: "unavailable", message: "m" } },
+  }));
+  await rejectsWith(sql.handler(ARGS.odoo_sql, context(unavailable.url)), "unavailable");
+  assert.equal(unavailable.requests.length, 1);
 });
 
 test("odoo_sql stops on abort and on its timeout", async (t) => {

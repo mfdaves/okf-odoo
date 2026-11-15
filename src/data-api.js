@@ -6,6 +6,7 @@
 // that user. Errors carry a fixed code and message: neither Odoo's text nor
 // the token or the credentials ever reach a result or an error.
 
+const { setTimeout: sleep } = require("node:timers/promises");
 const { OdooError, normalizeBaseUrl, postJson } = require("./odoo");
 
 const OPS = new Set(["models", "describe", "search", "read", "group", "sql"]);
@@ -18,6 +19,17 @@ const MAX_DETAIL = 200;
 const DEFAULT_TIMEOUT_MS = 25000;
 // Odoo caps a result at 1 MB by default; this only bounds a misbehaving server.
 const MAX_RESPONSE_BYTES = 8 * 1024 * 1024;
+// too_many_requests means the user's query slots or the server's sandbox
+// connections are all taken, which lasts as long as a running query. Agents
+// often send several queries at once, so the call waits and asks again
+// instead of failing: here, in the host, the wait holds no Odoo worker. It
+// gives up after BUSY_WAIT_MS, and never later than leaves the last attempt
+// MIN_ATTEMPT_MS of the call's time limit.
+const BUSY_WAIT_MS = 12000;
+const BUSY_DELAYS_MS = [250, 500, 1000];
+const MIN_ATTEMPT_MS = 5000;
+const BUSY_HINT =
+  "Odoo limits how many SQL queries run at once and stayed busy; send the queries one after another.";
 
 const MESSAGES = {
   // The data API contract.
@@ -138,18 +150,17 @@ const TRANSPORT = {
   invalid_response: "invalid_response",
 };
 
+// One call: the request, repeated while the data API answers
+// too_many_requests, within one time limit (`timeoutMs`) for the whole call.
 async function callDataApi(options) {
   const {
-    url,
     op,
     clientId,
     clientSecret,
     token,
-    params,
     signal,
     timeoutMs = DEFAULT_TIMEOUT_MS,
-    maxResponseBytes = MAX_RESPONSE_BYTES,
-    fetch,
+    busyWaitMs = BUSY_WAIT_MS,
   } = options;
   if (!OPS.has(op)) throw new OdooToolError("unknown_op");
   if (typeof token !== "string" || !token) throw new OdooToolError("subject_token_required");
@@ -161,6 +172,42 @@ async function callDataApi(options) {
   ) {
     throw new OdooToolError("client_credentials_unavailable");
   }
+  const started = Date.now();
+  const deadline = started + timeoutMs;
+  for (let attempt = 0; ; attempt += 1) {
+    try {
+      return await requestOnce(options, deadline - Date.now());
+    } catch (error) {
+      if (error.code !== "too_many_requests") throw error;
+      const delay = BUSY_DELAYS_MS[Math.min(attempt, BUSY_DELAYS_MS.length - 1)];
+      const resume = Date.now() + delay;
+      if (resume - started > busyWaitMs || deadline - resume < MIN_ATTEMPT_MS) {
+        throw new OdooToolError("too_many_requests", {
+          status: error.status,
+          reply: { ...error.details, hint: BUSY_HINT },
+        });
+      }
+      try {
+        await sleep(delay, undefined, { signal });
+      } catch {
+        throw new OdooToolError("aborted");
+      }
+    }
+  }
+}
+
+async function requestOnce(options, timeoutMs) {
+  const {
+    url,
+    op,
+    clientId,
+    clientSecret,
+    token,
+    params,
+    signal,
+    maxResponseBytes = MAX_RESPONSE_BYTES,
+    fetch,
+  } = options;
   let reply;
   try {
     reply = await postJson(
@@ -195,6 +242,7 @@ async function callDataApi(options) {
 }
 
 module.exports = {
+  BUSY_WAIT_MS,
   CONTRACT_CODES,
   DEFAULT_TIMEOUT_MS,
   MAX_RESPONSE_BYTES,

@@ -254,12 +254,20 @@ toolPacks:
 | `url` | required | Base URL of the Odoo server; `https`, or `http` for a loopback host only. |
 | `clientIdEnv` | required | Environment variable holding the resource-server client id. |
 | `clientSecretEnv` | required | Environment variable holding the resource-server client secret. |
-| `timeoutMs` | `25000` | Time limit per call, 1000 to 120000 ms. Keep it below the host's own limit (okf-mcp: the `timeoutMs` of the `toolPacks` entry, 30 s by default), or the host answers `tool_pack_timeout` before the pack can report `timeout`. |
+| `timeoutMs` | `25000` | Time limit per call, including any wait for a busy server, 1000 to 120000 ms. Keep it below the host's own limit (okf-mcp: the `timeoutMs` of the `toolPacks` entry, 30 s by default), or the host answers `tool_pack_timeout` before the pack can report `timeout`. |
 
 When the data API explains a refusal, the tool error's `details` carry its
 `field`, `reason` and `hint` (schema names and fixed texts, each at most 200
 characters, dropped if they hold the token or a credential), so an agent can
 correct its call; `odoo_sql`'s `query_error` adds PostgreSQL's answer.
+
+A call refused with `too_many_requests` (all of the user's SQL slots, or all
+of the sandbox's connections, are taken by running queries) is not failed at
+once: the pack waits 250 ms, 500 ms, then one second between attempts and
+sends it again, for up to 12 s and only while the last attempt keeps at least
+5 s of `timeoutMs`. Agents that send several queries at once get them run one
+after another. A refusal that lasts longer reaches the agent with a hint to
+send its queries one after another.
 
 Every tool declares `requiresSubjectToken: true`, so the host lists it only
 where a signed-in user's token exists. Arguments are checked against each

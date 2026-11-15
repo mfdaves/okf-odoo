@@ -360,7 +360,7 @@ const TOOLS = [
       "Name the columns you need instead of SELECT *: only named columns are copied for the query, so it runs faster, and large tables may otherwise exceed the copy limit (result_too_large).",
       "Values come as JSON: numbers for numeric columns, ISO 8601 strings for dates and times, seconds for intervals, \\x… hexadecimal for bytea. limit is 1 to 1000 rows (default 100); truncated is true when there are more. tables lists the tables copied, with their model and the rows the user may read.",
       "A query_error carries PostgreSQL's sqlstate, position and message so you can fix the query: 0A000 means the statement is not allowed, 42601 a syntax error, 42P01 a table that is unknown, hidden or not readable (deliberately the same answer).",
-      "A user may run at most two queries at once by default (too_many_requests otherwise); unavailable means SQL is not set up on this server. Prefer odoo_search and odoo_group for simple lookups and totals.",
+      "Odoo runs only a few queries per user at once (often one): a query sent while others run waits up to about 12 seconds for its turn, then fails with too_many_requests, so send long queries one after another. unavailable means SQL is not set up on this server. Prefer odoo_search and odoo_group for simple lookups and totals.",
       SHARING,
     ].join(" "),
     inputSchema: objectSchema(
@@ -509,6 +509,7 @@ async function runTool(tool, args, context = {}, dependencies = {}) {
     signal: context.signal,
     timeoutMs: config.timeoutMs,
     maxResponseBytes: dependencies.maxResponseBytes,
+    busyWaitMs: dependencies.busyWaitMs,
     fetch: dependencies.fetch,
   });
   const shaped = tool.result(result);
