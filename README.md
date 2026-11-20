@@ -221,7 +221,7 @@ reuse.
 ## Odoo data tools (experimental)
 
 `okfToolPack` gives an MCP host such as `okf-mcp` (tool-pack API v1, which is
-experimental and may still change) seven read-only tools for live records:
+experimental and may still change) seven read-only tools for live records and two that change them:
 
 | Tool | Data API operation | Purpose |
 | --- | --- | --- |
@@ -231,9 +231,11 @@ experimental and may still change) seven read-only tools for live records:
 | `odoo_search` | `search` | Records matching a domain, with the requested fields (at most 200 per call) |
 | `odoo_read` | `read` | Records by id (at most 100) |
 | `odoo_group` | `group` | Grouped totals such as `amount_total:sum` and `__count` (at most 500 groups); without `groupby`, one group of totals over all matching records (`o3p_mcp` 1.42 or newer) |
+| `odoo_create` | `create` | Create 1 to 20 records of a model as the signed-in user, on the models the Odoo administrator opened for writing (`o3p_mcp` 1.43 or newer) |
+| `odoo_update` | `update` | Set fields of existing records, given by their ids (at most 100), all or none (`o3p_mcp` 1.43 or newer) |
 | `odoo_sql` | `sql` | One read-only `SELECT`, `VALUES` or `TABLE` statement on the database tables, over only the rows and fields the user may read (at most 1000 rows; default 100) |
 
-Each tool requires the `odoo.read` scope, `odoo_sql` the `odoo.sql` scope. The tools do not read Odoo
+Each tool requires the `odoo.read` scope, `odoo_sql` the `odoo.sql` scope, `odoo_create` and `odoo_update` the `odoo.write` scope; the two are announced as not read-only (`readOnlyHint: false`), `odoo_update` also as destructive. When Odoo itself refuses a change, their `query_error` carries Odoo's message for the user in `details.message` (at most 500 characters). The tools do not read Odoo
 directly: every call is a `POST {url}/o3p_mcp/api/v1/{op}` to the data API of
 the `o3p_mcp` Odoo addon, authenticated with the MCP server's
 resource-server client credentials (HTTP Basic) and carrying the signed-in

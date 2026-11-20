@@ -19,8 +19,11 @@ const NAMES = [
   "odoo_search",
   "odoo_read",
   "odoo_group",
+  "odoo_create",
+  "odoo_update",
   "odoo_sql",
 ];
+const WRITES = { odoo_create: "create", odoo_update: "update" };
 
 // A stand-in for the o3p_mcp data API. `reply(request)` returns
 // { status, body, contentType } or a function that writes the raw response.
@@ -94,6 +97,16 @@ const ARGS = {
     order: "amount_total:sum desc",
     limit: 20,
   },
+  odoo_create: {
+    model: "res.partner",
+    records: [{ name: "New customer", parent_id: 7, category_id: [1, 2], email: false }],
+    company: 1,
+  },
+  odoo_update: {
+    model: "res.partner",
+    ids: [5, 6],
+    values: { phone: "+39 02 000", category_id: { add: [3], remove: [1] } },
+  },
   odoo_sql: {
     query:
       "SELECT p.name, count(o.id) FROM res_partner p JOIN sale_order o ON o.partner_id = p.id GROUP BY p.name",
@@ -116,6 +129,13 @@ const RESULTS = {
   search: { records: [{ id: 1, name: "S1" }], count: 1, truncated: false },
   read: { records: [{ id: 1, name: "S1" }] },
   group: { groups: [{ partner_id: [3, "P"], amount_total: 10, __count: 1 }] },
+  create: { records: [{ id: 9, display_name: "New customer" }] },
+  update: {
+    records: [
+      { id: 5, display_name: "A" },
+      { id: 6, display_name: "B" },
+    ],
+  },
   sql: {
     columns: [
       { name: "name", type: "character varying" },
@@ -139,7 +159,7 @@ function rejectsWith(promise, code) {
   });
 }
 
-test("the pack declares API v1, id odoo and seven read-only tools", () => {
+test("the pack declares API v1, id odoo, seven read-only tools and two that write", () => {
   assert.equal(exported, okfToolPack);
   assert.ok(okfProducer, "the producer is still exported next to the pack");
   assert.equal(okfToolPack.apiVersion, "1");
@@ -148,14 +168,17 @@ test("the pack declares API v1, id odoo and seven read-only tools", () => {
   assert.deepEqual(Object.keys(okfToolPack.tools), NAMES);
   for (const [name, tool] of Object.entries(okfToolPack.tools)) {
     assert.match(name, /^[a-z][a-z0-9_]{2,63}$/);
-    assert.equal(tool.scope, name === "odoo_sql" ? "odoo.sql" : "odoo.read");
+    const scope = WRITES[name] ? "odoo.write" : name === "odoo_sql" ? "odoo.sql" : "odoo.read";
+    assert.equal(tool.scope, scope);
     assert.equal(tool.requiresSubjectToken, true);
     assert.equal(typeof tool.handler, "function");
     assert.equal(tool.inputSchema.type, "object");
     assert.equal(tool.inputSchema.additionalProperties, false);
     assert.equal(tool.outputSchema.type, "object");
-    assert.equal(tool.annotations.readOnlyHint, true);
-    assert.equal(tool.annotations.destructiveHint, false);
+    // A writing tool is announced as such; an update replaces existing values.
+    assert.equal(tool.annotations.readOnlyHint, !WRITES[name]);
+    assert.equal(tool.annotations.idempotentHint, !WRITES[name]);
+    assert.equal(tool.annotations.destructiveHint, WRITES[name] === "update");
     assert.ok(tool.description.length > 100 && tool.description.length < 2500, name);
   }
   const { odoo_search: search, odoo_group: group, odoo_read: read } = okfToolPack.tools;
@@ -209,10 +232,9 @@ test("each tool posts its operation with Basic client credentials and the subjec
   }
   assert.deepEqual(
     server.requests.map((request) => [request.method, request.url]),
-    ["context", "models", "describe", "search", "read", "group", "sql"].map((op) => [
-      "POST",
-      `/o3p_mcp/api/v1/${op}`,
-    ]),
+    ["context", "models", "describe", "search", "read", "group", "create", "update", "sql"].map(
+      (op) => ["POST", `/o3p_mcp/api/v1/${op}`],
+    ),
   );
   for (const request of server.requests) {
     assert.match(request.headers["content-type"], /^application\/json/);
@@ -233,8 +255,12 @@ test("each tool posts its operation with Basic client credentials and the subjec
   assert.deepEqual(params[3], ARGS.odoo_search);
   assert.deepEqual(params[4], ARGS.odoo_read);
   assert.deepEqual(params[5], ARGS.odoo_group);
-  assert.deepEqual(params[6], ARGS.odoo_sql);
+  assert.deepEqual(params[6], ARGS.odoo_create);
+  assert.deepEqual(params[7], ARGS.odoo_update);
+  assert.deepEqual(params[8], ARGS.odoo_sql);
   assert.deepEqual(results.odoo_context, RESULTS.context);
+  assert.deepEqual(results.odoo_create, RESULTS.create);
+  assert.deepEqual(results.odoo_update, RESULTS.update);
   assert.deepEqual(results.odoo_sql, RESULTS.sql);
   assert.deepEqual(results.odoo_find_models, { models: RESULTS.models });
   assert.deepEqual(results.odoo_search, RESULTS.search);
@@ -832,4 +858,56 @@ test("models pages with offset and describe reports how fields may be used", asy
       /details name the parameter \(field\), the reason and a hint/,
     );
   }
+});
+
+test("create and update pass on Odoo's own refusal and refuse malformed arguments before any request", async (t) => {
+  const explanation = "You are creating a loop in your 'Partner Tag' records.";
+  const server = await fakeDataApi(t, () => ({
+    status: 422,
+    body: {
+      error: { code: "query_error", message: "x", details: { message: explanation } },
+    },
+  }));
+  for (const name of ["odoo_create", "odoo_update"]) {
+    await assert.rejects(
+      okfToolPack.tools[name].handler(ARGS[name], context(server.url)),
+      (error) => {
+        assert.equal(error.code, "query_error");
+        assert.equal(error.details.message, explanation);
+        return true;
+      },
+    );
+  }
+  // A read's query_error carries no text from Odoo.
+  await assert.rejects(
+    okfToolPack.tools.odoo_search.handler(ARGS.odoo_search, context(server.url)),
+    (error) => {
+      assert.equal(error.code, "query_error");
+      assert.equal(error.details?.message, undefined);
+      return true;
+    },
+  );
+  const before = server.requests.length;
+  const partner = { model: "res.partner" };
+  for (const [name, args] of [
+    ["odoo_create", { ...partner, records: [] }],
+    ["odoo_create", { ...partner, records: Array(21).fill({ name: "x" }) }],
+    ["odoo_create", { ...partner, records: [{}] }],
+    ["odoo_create", { ...partner, records: [{ "Bad Name": 1 }] }],
+    ["odoo_create", { ...partner, records: [{ name: "x" }], company: 0 }],
+    ["odoo_update", { ...partner, ids: [], values: { name: "x" } }],
+    ["odoo_update", { ...partner, ids: [0], values: { name: "x" } }],
+    [
+      "odoo_update",
+      { ...partner, ids: Array.from({ length: 101 }, (_, i) => i + 1), values: { name: "x" } },
+    ],
+    ["odoo_update", { ...partner, ids: [1], values: {} }],
+    ["odoo_update", { ...partner, ids: [1] }],
+  ]) {
+    await rejectsWith(
+      okfToolPack.tools[name].handler(args, context(server.url)),
+      "invalid_arguments",
+    );
+  }
+  assert.equal(server.requests.length, before);
 });

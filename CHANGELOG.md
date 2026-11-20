@@ -6,6 +6,7 @@ All notable changes to `@mfdaves/okf-odoo`. The format follows Keep a Changelog;
 
 ### Added
 
+- Tools `odoo_create` and `odoo_update` (data API operations `create` and `update`, scope `odoo.write`, `o3p_mcp` 1.43 or newer): create up to 20 records, or set fields of up to 100 records given by id, as the signed-in user, on the models the Odoo administrator opened for writing. They are announced with `readOnlyHint: false`; a refusal by Odoo itself carries Odoo's message in `details.message`.
 - Tool `odoo_context` (data API operation `context`, `o3p_mcp` 1.42 or newer): the signed-in user, the language and time zone of the answers, the user's default company and all the user's companies, the current time in UTC and today's date in the user's time zone.
 
 ### Changed

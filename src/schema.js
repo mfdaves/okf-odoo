@@ -2,7 +2,8 @@
 
 // Checks a value against the small JSON Schema subset the tool schemas use:
 // type, enum, properties, required, additionalProperties: false, items,
-// prefixItems, min/maxItems, min/maxLength, pattern, minimum/maximum, anyOf.
+// prefixItems, min/maxItems, min/maxLength, pattern, minimum/maximum, anyOf,
+// min/maxProperties and propertyNames with a pattern.
 // Returns the path of the first violation, or null. The path names schema
 // properties and array positions only, never a value or an unknown key.
 
@@ -46,6 +47,19 @@ function violation(schema, value, path = "") {
     }
   }
   if (typeOf(value) === "object") {
+    const keys = Object.keys(value);
+    if (schema.minProperties !== undefined && keys.length < schema.minProperties)
+      return path || "/";
+    if (schema.maxProperties !== undefined && keys.length > schema.maxProperties)
+      return path || "/";
+    if (schema.propertyNames?.pattern) {
+      const names = new RegExp(schema.propertyNames.pattern, "u");
+      const limit = schema.propertyNames.maxLength ?? Number.POSITIVE_INFINITY;
+      // The caller's own key is not echoed.
+      if (keys.some((key) => !names.test(key) || key.length > limit)) {
+        return `${path}/(unexpected property)`;
+      }
+    }
     for (const key of schema.required || []) {
       if (!Object.hasOwn(value, key)) return `${path}/${key}`;
     }

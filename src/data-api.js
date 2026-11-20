@@ -9,7 +9,20 @@
 const { setTimeout: sleep } = require("node:timers/promises");
 const { OdooError, normalizeBaseUrl, postJson } = require("./odoo");
 
-const OPS = new Set(["context", "models", "describe", "search", "read", "group", "sql"]);
+const OPS = new Set([
+  "context",
+  "models",
+  "describe",
+  "search",
+  "read",
+  "group",
+  "sql",
+  "create",
+  "update",
+]);
+// The operations that change records: Odoo's own refusal of a write comes
+// with the message Odoo shows that user.
+const WRITE_OPS = new Set(["create", "update"]);
 // PostgreSQL's own message about an SQL query, as the data API caps it.
 const MAX_SQL_MESSAGE = 500;
 // The host passes on detail strings of at most 200 characters.
@@ -36,12 +49,13 @@ const MESSAGES = {
   invalid_params: "Odoo refused the parameters.",
   invalid_client: "Odoo refused the connector's client credentials.",
   invalid_token: "The signed-in user's access token is not valid for Odoo.",
-  insufficient_scope: "The signed-in user's access token does not allow reading Odoo data.",
-  access_denied: "The signed-in user may not read this.",
+  insufficient_scope: "The signed-in user's access token does not allow this on Odoo data.",
+  access_denied: "The signed-in user may not read or change this.",
   unknown_op: "Odoo does not offer this operation.",
   unknown_model: "Odoo has no such model, or it is not exposed.",
   result_too_large: "The result is too large; ask for fewer records or fields.",
-  query_error: "Odoo could not run the query; check field names, operators and values.",
+  query_error:
+    "Odoo could not run the query or refused the change; check field names, operators and values.",
   too_many_requests: "Too many queries are running for this user or server; try again shortly.",
   unavailable: "SQL queries are not available on this Odoo server right now.",
   timeout: "The query took too long.",
@@ -103,8 +117,10 @@ function oneLine(value, max) {
 // hint, all schema names and fixed texts. sql's query_error adds
 // PostgreSQL's answer (the sandbox holds only rows the user may read, and an
 // agent needs it to fix its query): a valid SQLSTATE, a 1-based position and
-// a message of at most 500 characters. A string holding the token or a
-// credential is dropped. Returns null when nothing remains.
+// a message of at most 500 characters. create's and update's query_error
+// adds Odoo's own message for the user, capped the same way. A string
+// holding the token or a credential is dropped. Returns null when nothing
+// remains.
 function errorDetails(value, op, code, hidden) {
   if (!value || typeof value !== "object" || Array.isArray(value)) return null;
   const clean = (text, max) => {
@@ -126,6 +142,10 @@ function errorDetails(value, op, code, hidden) {
         ? value.position
         : null;
     details.message = clean(value.message, MAX_SQL_MESSAGE);
+  }
+  if (WRITE_OPS.has(op) && code === "query_error") {
+    const message = clean(value.message, MAX_SQL_MESSAGE);
+    if (message) details.message = message;
   }
   return Object.keys(details).length ? details : null;
 }

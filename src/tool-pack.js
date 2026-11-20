@@ -16,7 +16,7 @@ function createOdooToolPack(dependencies = {}) {
   for (const tool of TOOLS) {
     tools[tool.name] = Object.freeze({
       description: tool.description,
-      annotations: Object.freeze(annotations(tool.title)),
+      annotations: Object.freeze(annotations(tool.title, tool.writes)),
       inputSchema: tool.inputSchema,
       outputSchema: tool.outputSchema,
       scope: tool.scope || SCOPE,

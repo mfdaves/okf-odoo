@@ -93,12 +93,14 @@ function objectSchema(properties, required) {
   return { type: "object", properties, required, additionalProperties: false };
 }
 
-function annotations(title) {
+// `writes` is "create" or "update" for a tool that changes Odoo records: it
+// is not read-only, not repeatable, and an update replaces existing values.
+function annotations(title, writes) {
   return {
     title,
-    readOnlyHint: true,
-    destructiveHint: false,
-    idempotentHint: true,
+    readOnlyHint: !writes,
+    destructiveHint: writes === "update",
+    idempotentHint: !writes,
     openWorldHint: true,
   };
 }
@@ -115,6 +117,40 @@ const EXPLAINED =
   "When Odoo refuses a call (invalid_params, unknown_model, access_denied), the error's details name the parameter (field), the reason and a hint: read them and correct the call.";
 const LOOK_UP_FIRST =
   "Before searching, look up the model in the generated `odoo` knowledge bundle (its models/<model> concept lists the fields, relations and access rules) or call odoo_describe_model, so that you use real field names.";
+
+// Field values of a record to create or to change.
+const VALUES = {
+  type: "object",
+  minProperties: 1,
+  maxProperties: 200,
+  propertyNames: { pattern: "^[a-z_][a-z0-9_]*$", maxLength: 128 },
+  description:
+    'Field values by field name, for fields odoo_describe_model marks writable: text, numbers and booleans as JSON; a date as "YYYY-MM-DD" and a date-time as "YYYY-MM-DD HH:MM:SS" in UTC; a selection by its key; a many2one by the related record\'s id; a many2many as a list of record ids. false empties a field.',
+};
+const COMPANY = {
+  type: "integer",
+  minimum: 1,
+  description:
+    "Id of the company to work in, one of the user's companies (see odoo_context); default: the user's default company.",
+};
+const WRITTEN = {
+  type: "object",
+  properties: {
+    records: {
+      type: "array",
+      items: {
+        type: "object",
+        properties: { id: { type: "integer" }, display_name: { type: "string" } },
+        required: ["id"],
+      },
+    },
+  },
+  required: ["records"],
+};
+const WRITE_RULES =
+  "Odoo applies the signed-in user's own rights, and accepts writes only on the models the administrator opened: odoo_describe_model tells both (access, and writable on each field). Read-only, computed and related fields, one2many lines, files and images cannot be set; a status changes through Odoo's own buttons, not by setting the field.";
+const WRITE_ERRORS =
+  "Nothing is written when any part is refused. access_denied, invalid_params and unknown_record name the field and a hint; when Odoo itself refuses the change (query_error), details.message is Odoo's explanation for the user.";
 
 const TOOLS = [
   {
@@ -392,6 +428,68 @@ const TOOLS = [
       required: ["groups"],
     },
     params: (args) => ({ domain: [], limit: 80, ...args }),
+    result: objectResult,
+  },
+  {
+    name: "odoo_create",
+    op: "create",
+    scope: "odoo.write",
+    writes: "create",
+    title: "Create Odoo records",
+    description: [
+      "Create 1 to 20 records of one Odoo model as the signed-in user; the answer lists the new records with their ids and display names.",
+      WRITE_RULES,
+      "Before calling it, tell the user exactly what you are about to create, and check with odoo_search that the record does not exist already.",
+      WRITE_ERRORS,
+    ].join(" "),
+    inputSchema: objectSchema(
+      {
+        model: MODEL,
+        records: {
+          type: "array",
+          items: VALUES,
+          minItems: 1,
+          maxItems: 20,
+          description: "The records to create, each an object of field values.",
+        },
+        company: COMPANY,
+      },
+      ["model", "records"],
+    ),
+    outputSchema: WRITTEN,
+    params: (args) => ({ ...args }),
+    result: objectResult,
+  },
+  {
+    name: "odoo_update",
+    op: "update",
+    scope: "odoo.write",
+    writes: "update",
+    title: "Change Odoo records",
+    description: [
+      "Set fields of existing records of one Odoo model, given by their ids (at most 100), as the signed-in user. Every record gets the same values, and all are changed or none.",
+      WRITE_RULES,
+      'On a many2many field a list of ids replaces the linked records; { "add": [ids], "remove": [ids] } changes them.',
+      "Read the records first (odoo_search or odoo_read) and tell the user exactly which records and fields you are about to change. A record that does not exist and one the user may not read are refused alike (unknown_record).",
+      WRITE_ERRORS,
+    ].join(" "),
+    inputSchema: objectSchema(
+      {
+        model: MODEL,
+        ids: {
+          type: "array",
+          items: { type: "integer", minimum: 1 },
+          minItems: 1,
+          maxItems: 100,
+          description: "Ids of the records to change.",
+        },
+        values: VALUES,
+        company: COMPANY,
+      },
+      ["model", "ids", "values"],
+    ),
+    outputSchema: WRITTEN,
+    params: (args) => ({ ...args }),
     result: objectResult,
   },
   {
