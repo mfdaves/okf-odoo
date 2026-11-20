@@ -196,12 +196,16 @@ test("the pack declares API v1, id odoo, seven read-only tools and two that writ
   for (const name of ["odoo_search", "odoo_read", "odoo_group", "odoo_sql"]) {
     assert.match(
       okfToolPack.tools[name].description,
-      /readable by every MCP user: record conclusions and aggregates, not personal or confidential values/,
+      /readable by every user who reads the bundle it is written into: record conclusions and aggregates, not personal or confidential values/,
       name,
     );
   }
   for (const name of ["odoo_find_models", "odoo_describe_model"]) {
-    assert.doesNotMatch(okfToolPack.tools[name].description, /readable by every MCP user/, name);
+    assert.doesNotMatch(
+      okfToolPack.tools[name].description,
+      /readable by every user who reads the bundle/,
+      name,
+    );
   }
   assert.match(search.description, /related record's display name/);
   assert.match(search.description, /refused with invalid_params/);
@@ -215,7 +219,7 @@ test("the pack declares API v1, id odoo, seven read-only tools and two that writ
   const { odoo_context: whoami } = okfToolPack.tools;
   assert.deepEqual(whoami.inputSchema.properties, {});
   assert.match(whoami.description, /today's date in the user's time zone/);
-  assert.doesNotMatch(whoami.description, /readable by every MCP user/);
+  assert.doesNotMatch(whoami.description, /readable by every user who reads the bundle/);
   assert.doesNotMatch(
     group.description + JSON.stringify(group.inputSchema),
     /bool_and|bool_or|array_agg/,

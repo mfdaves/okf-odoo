@@ -108,9 +108,9 @@ function annotations(title, writes) {
 const RIGHTS =
   "Odoo runs every call as the signed-in user: results contain only what that user may read under Odoo's access rights and record rules, so another user may see different records.";
 // Results follow one user's Odoo access, knowledge written from them is read
-// by everyone.
+// by everyone who reads the bundle it is written into.
 const SHARING =
-  "These results are limited to the signed-in user's own Odoo access, but knowledge written from them is readable by every MCP user: record conclusions and aggregates, not personal or confidential values (names of individuals, salaries, health or contact details) that other readers could not see in Odoo.";
+  "These results are limited to the signed-in user's own Odoo access, but knowledge written from them is readable by every user who reads the bundle it is written into: record conclusions and aggregates, not personal or confidential values (names of individuals, salaries, health or contact details) that other readers could not see in Odoo.";
 const FIELD_FLAGS =
   "Filter only on fields odoo_describe_model marks searchable, sort only on sortable ones and group only on groupable ones.";
 const EXPLAINED =

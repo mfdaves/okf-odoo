@@ -17,10 +17,10 @@ own: a host such as [`okf-mcp`](https://github.com/mfdaves/okf-mcp) loads it,
 validates the candidate bundle and publishes it through
 `okf producer preview` and `okf producer run`.
 
-It also ships an experimental tool pack with read-only tools for live Odoo
-records ([Odoo data tools](#odoo-data-tools-experimental)). Those never touch
-the metadata reader: they ask an Odoo addon to run each query as the
-signed-in user.
+It also ships an experimental tool pack with tools for live Odoo records
+([Odoo data tools](#odoo-data-tools-experimental)): seven that read and two
+that create and update. Those never touch the metadata reader: they ask an
+Odoo addon to run each call as the signed-in user.
 
 ## Requirements
 

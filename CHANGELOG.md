@@ -2,7 +2,9 @@
 
 All notable changes to `@mfdaves/okf-odoo`. The format follows Keep a Changelog; versions follow SemVer.
 
-## Unreleased
+## 0.2.0-rc.1 — 2026-11-21
+
+A release candidate, published under npm's `next` tag.
 
 ### Added
 
@@ -12,6 +14,7 @@ All notable changes to `@mfdaves/okf-odoo`. The format follows Keep a Changelog;
 ### Changed
 
 - `odoo_group`: `groupby` is optional; without it the answer is one group holding the totals over all matching records (`o3p_mcp` 1.42 or newer). Its description says that a date bucket is a period in the user's time zone whose start is given in UTC.
+- The note on sharing in the descriptions of the tools that return record data says that knowledge written from the results is readable by every user who reads the bundle it is written into (before: by every MCP user), since a host can restrict a bundle to audiences.
 
 ## 0.1.2 — 2026-11-15
 
