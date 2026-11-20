@@ -221,15 +221,16 @@ reuse.
 ## Odoo data tools (experimental)
 
 `okfToolPack` gives an MCP host such as `okf-mcp` (tool-pack API v1, which is
-experimental and may still change) six read-only tools for live records:
+experimental and may still change) seven read-only tools for live records:
 
 | Tool | Data API operation | Purpose |
 | --- | --- | --- |
+| `odoo_context` | `context` | The signed-in user, the language and time zone of the answers, the user's default company and all the user's companies, the current time and today's date in the user's time zone (needs `o3p_mcp` 1.42 or newer; an older server answers `unknown_op`) |
 | `odoo_find_models` | `models` | Find models the signed-in user may read, by name or label, paged with `offset` (`total`, `truncated`) |
 | `odoo_describe_model` | `describe` | The fields of a model as that user sees them, with whether each is stored, searchable, sortable and groupable |
 | `odoo_search` | `search` | Records matching a domain, with the requested fields (at most 200 per call) |
 | `odoo_read` | `read` | Records by id (at most 100) |
-| `odoo_group` | `group` | Grouped totals such as `amount_total:sum` and `__count` (at most 500 groups) |
+| `odoo_group` | `group` | Grouped totals such as `amount_total:sum` and `__count` (at most 500 groups); without `groupby`, one group of totals over all matching records (`o3p_mcp` 1.42 or newer) |
 | `odoo_sql` | `sql` | One read-only `SELECT`, `VALUES` or `TABLE` statement on the database tables, over only the rows and fields the user may read (at most 1000 rows; default 100) |
 
 Each tool requires the `odoo.read` scope, `odoo_sql` the `odoo.sql` scope. The tools do not read Odoo

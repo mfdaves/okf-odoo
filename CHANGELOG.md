@@ -2,6 +2,16 @@
 
 All notable changes to `@mfdaves/okf-odoo`. The format follows Keep a Changelog; versions follow SemVer.
 
+## Unreleased
+
+### Added
+
+- Tool `odoo_context` (data API operation `context`, `o3p_mcp` 1.42 or newer): the signed-in user, the language and time zone of the answers, the user's default company and all the user's companies, the current time in UTC and today's date in the user's time zone.
+
+### Changed
+
+- `odoo_group`: `groupby` is optional; without it the answer is one group holding the totals over all matching records (`o3p_mcp` 1.42 or newer). Its description says that a date bucket is a period in the user's time zone whose start is given in UTC.
+
 ## 0.1.2 — 2026-11-15
 
 No runtime change.

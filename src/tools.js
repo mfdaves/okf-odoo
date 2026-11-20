@@ -118,6 +118,51 @@ const LOOK_UP_FIRST =
 
 const TOOLS = [
   {
+    name: "odoo_context",
+    op: "context",
+    title: "Who and where am I in Odoo",
+    description: [
+      "Tell who the signed-in Odoo user is and in which setting the other tools answer: the user (id, name, login), the language and time zone of the answers, the user's default company and all the user's companies, the current time in UTC (now) and today's date in the user's time zone (today).",
+      'Call it once before questions about "my" records (filter on the user\'s id), about relative dates such as today or this month, or about one company.',
+      "It takes no arguments and tells nothing about other users. A server with o3p_mcp older than 1.42 answers unknown_op.",
+    ].join(" "),
+    inputSchema: objectSchema({}, []),
+    outputSchema: {
+      type: "object",
+      properties: {
+        user: {
+          type: "object",
+          properties: {
+            id: { type: "integer" },
+            name: { type: "string" },
+            login: { type: "string" },
+          },
+          required: ["id", "name"],
+        },
+        lang: { type: "string" },
+        tz: { type: "string" },
+        company: {
+          type: "object",
+          properties: { id: { type: "integer" }, name: { type: "string" } },
+          required: ["id", "name"],
+        },
+        companies: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { id: { type: "integer" }, name: { type: "string" } },
+            required: ["id", "name"],
+          },
+        },
+        now: { type: "string" },
+        today: { type: "string" },
+      },
+      required: ["user", "tz", "company", "companies"],
+    },
+    params: () => ({}),
+    result: objectResult,
+  },
+  {
     name: "odoo_find_models",
     op: "models",
     title: "Find Odoo models",
@@ -299,7 +344,8 @@ const TOOLS = [
       FIELD_FLAGS,
       EXPLAINED,
       'groupby lists fields; a date field needs a granularity: "date:month" (day, week, month, quarter, year, or hour for date-times). aggregates are written "field:function": sum, avg, min or max on numeric fields, count or count_distinct on stored fields, and "__count" counts records. Example: groupby ["partner_id"], aggregates ["amount_total:sum", "__count"], order "amount_total:sum desc".',
-      "Each group carries its groupby values and aggregates: a relation as [id, display name], a date bucket as [start, label].",
+      "Leave groupby out for one group holding the totals over all matching records.",
+      "Each group carries its groupby values and aggregates: a relation as [id, display name], a date bucket as [start, label]. A date bucket is a period in the user's time zone (see odoo_context) and start is its beginning in UTC, which can fall on the day before: read the period from the label.",
       "The domain has the same syntax as in odoo_search, with paths of at most 4 fields. At most 500 groups.",
       `${RIGHTS} Totals therefore cover only the records the user may read.`,
       SHARING,
@@ -315,9 +361,9 @@ const TOOLS = [
             pattern: "^[a-z_][a-z0-9_]*(:(hour|day|week|month|quarter|year))?$",
             maxLength: 140,
           },
-          minItems: 1,
           maxItems: 5,
-          description: 'Fields to group by, for example ["partner_id", "date:month"].',
+          description:
+            'Fields to group by, for example ["partner_id", "date:month"]; leave out for totals only.',
         },
         aggregates: {
           type: "array",
@@ -338,7 +384,7 @@ const TOOLS = [
           description: "At most 500; default 80.",
         },
       },
-      ["model", "groupby", "aggregates"],
+      ["model", "aggregates"],
     ),
     outputSchema: {
       type: "object",

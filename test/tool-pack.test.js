@@ -13,6 +13,7 @@ const CLIENT_ID = "rs client+id:1é";
 const CLIENT_SECRET = "SENTINEL secret/+&=:%";
 const ENV = { O3P_CLIENT_ID: CLIENT_ID, O3P_CLIENT_SECRET: CLIENT_SECRET };
 const NAMES = [
+  "odoo_context",
   "odoo_find_models",
   "odoo_describe_model",
   "odoo_search",
@@ -73,6 +74,7 @@ function context(url, extra = {}) {
 }
 
 const ARGS = {
+  odoo_context: {},
   odoo_find_models: { query: "partner", limit: 5 },
   odoo_describe_model: { model: "res.partner" },
   odoo_search: {
@@ -100,6 +102,15 @@ const ARGS = {
 };
 
 const RESULTS = {
+  context: {
+    user: { id: 42, name: "Someone", login: "someone" },
+    lang: "it_IT",
+    tz: "Europe/Rome",
+    company: { id: 1, name: "Company" },
+    companies: [{ id: 1, name: "Company" }],
+    now: "2026-11-20 21:00:00",
+    today: "2026-11-20",
+  },
   models: [{ model: "res.partner", name: "Contact" }],
   describe: { model: "res.partner", name: "Contact", fields: [{ name: "name", type: "char" }] },
   search: { records: [{ id: 1, name: "S1" }], count: 1, truncated: false },
@@ -128,7 +139,7 @@ function rejectsWith(promise, code) {
   });
 }
 
-test("the pack declares API v1, id odoo and six read-only tools", () => {
+test("the pack declares API v1, id odoo and seven read-only tools", () => {
   assert.equal(exported, okfToolPack);
   assert.ok(okfProducer, "the producer is still exported next to the pack");
   assert.equal(okfToolPack.apiVersion, "1");
@@ -175,6 +186,13 @@ test("the pack declares API v1, id odoo and six read-only tools", () => {
   assert.match(search.description, /at most 4 fields/);
   assert.match(group.description, /at most 4 fields/);
   assert.match(group.description, /\[id, display name\], a date bucket as \[start, label\]/);
+  assert.match(group.description, /period in the user's time zone \(see odoo_context\)/);
+  assert.match(group.description, /Leave groupby out for one group holding the totals/);
+  assert.ok(!group.inputSchema.required.includes("groupby"));
+  const { odoo_context: whoami } = okfToolPack.tools;
+  assert.deepEqual(whoami.inputSchema.properties, {});
+  assert.match(whoami.description, /today's date in the user's time zone/);
+  assert.doesNotMatch(whoami.description, /readable by every MCP user/);
   assert.doesNotMatch(
     group.description + JSON.stringify(group.inputSchema),
     /bool_and|bool_or|array_agg/,
@@ -191,7 +209,7 @@ test("each tool posts its operation with Basic client credentials and the subjec
   }
   assert.deepEqual(
     server.requests.map((request) => [request.method, request.url]),
-    ["models", "describe", "search", "read", "group", "sql"].map((op) => [
+    ["context", "models", "describe", "search", "read", "group", "sql"].map((op) => [
       "POST",
       `/o3p_mcp/api/v1/${op}`,
     ]),
@@ -209,12 +227,14 @@ test("each tool posts its operation with Basic client credentials and the subjec
     assert.deepEqual(Object.keys(request.body).sort(), ["params", "token"]);
   }
   const params = server.requests.map((request) => request.body.params);
-  assert.deepEqual(params[0], ARGS.odoo_find_models);
-  assert.deepEqual(params[1], ARGS.odoo_describe_model);
-  assert.deepEqual(params[2], ARGS.odoo_search);
-  assert.deepEqual(params[3], ARGS.odoo_read);
-  assert.deepEqual(params[4], ARGS.odoo_group);
-  assert.deepEqual(params[5], ARGS.odoo_sql);
+  assert.deepEqual(params[0], {});
+  assert.deepEqual(params[1], ARGS.odoo_find_models);
+  assert.deepEqual(params[2], ARGS.odoo_describe_model);
+  assert.deepEqual(params[3], ARGS.odoo_search);
+  assert.deepEqual(params[4], ARGS.odoo_read);
+  assert.deepEqual(params[5], ARGS.odoo_group);
+  assert.deepEqual(params[6], ARGS.odoo_sql);
+  assert.deepEqual(results.odoo_context, RESULTS.context);
   assert.deepEqual(results.odoo_sql, RESULTS.sql);
   assert.deepEqual(results.odoo_find_models, { models: RESULTS.models });
   assert.deepEqual(results.odoo_search, RESULTS.search);

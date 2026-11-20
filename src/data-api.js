@@ -9,7 +9,7 @@
 const { setTimeout: sleep } = require("node:timers/promises");
 const { OdooError, normalizeBaseUrl, postJson } = require("./odoo");
 
-const OPS = new Set(["models", "describe", "search", "read", "group", "sql"]);
+const OPS = new Set(["context", "models", "describe", "search", "read", "group", "sql"]);
 // PostgreSQL's own message about an SQL query, as the data API caps it.
 const MAX_SQL_MESSAGE = 500;
 // The host passes on detail strings of at most 200 characters.
