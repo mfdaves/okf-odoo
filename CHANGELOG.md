@@ -2,6 +2,10 @@
 
 All notable changes to `@mfdaves/okf-odoo`. The format follows Keep a Changelog; versions follow SemVer.
 
+## 0.2.0 — 2026-11-21
+
+No runtime change from 0.2.0-rc.1: the same code, released under npm's `latest` tag.
+
 ## 0.2.0-rc.1 — 2026-11-21
 
 A release candidate, published under npm's `next` tag.
