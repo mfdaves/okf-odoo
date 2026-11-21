@@ -18,7 +18,7 @@ sources:
   - resource: odoo://erp/ir.actions.server
     title: erp ir.actions.server
 generated:
-  by: okf-odoo/0.2.0
+  by: okf-odoo/0.3.0-rc.1
   at: '2026-11-14T10:00:00.000Z'
 tags:
   - odoo

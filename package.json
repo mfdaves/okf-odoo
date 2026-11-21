@@ -1,6 +1,6 @@
 {
   "name": "@mfdaves/okf-odoo",
-  "version": "0.2.0",
+  "version": "0.3.0-rc.1",
   "description": "Odoo for Open Knowledge Format: a read-only metadata producer and an MCP tool pack for live Odoo data.",
   "homepage": "https://github.com/mfdaves/okf-odoo#readme",
   "repository": {
