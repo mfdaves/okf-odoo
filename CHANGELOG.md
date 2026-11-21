@@ -2,6 +2,16 @@
 
 All notable changes to `@mfdaves/okf-odoo`. The format follows Keep a Changelog; versions follow SemVer.
 
+## Unreleased
+
+### Added
+
+- Tools `odoo_find_actions`, `odoo_describe_action` (scope `odoo.read`) and `odoo_run_action` (scope `odoo.write`), for the data API operations `actions`, `describe_action` and `run_action` of `o3p_mcp` 1.48 or newer: list the buttons, server actions and wizards the Odoo administrator exposed and the signed-in user may run, describe one with the values it asks for, and run it on records given by their ids. `odoo_run_action` is announced as not read-only and destructive; a refusal by Odoo itself carries Odoo's message in `details.message`. A client names an exposed action, never a method.
+
+### Changed
+
+- The descriptions of `odoo_create` and `odoo_update` say to look for an exposed action when Odoo refuses a change and names a button.
+
 ## 0.2.0 — 2026-11-21
 
 No runtime change from 0.2.0-rc.1: the same code, released under npm's `latest` tag.

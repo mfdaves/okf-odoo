@@ -21,9 +21,14 @@ const NAMES = [
   "odoo_group",
   "odoo_create",
   "odoo_update",
+  "odoo_find_actions",
+  "odoo_describe_action",
+  "odoo_run_action",
   "odoo_sql",
 ];
-const WRITES = { odoo_create: "create", odoo_update: "update" };
+const WRITES = { odoo_create: "create", odoo_update: "update", odoo_run_action: "run" };
+// A tool that may undo or replace what is there.
+const DESTRUCTIVE = new Set(["odoo_update", "odoo_run_action"]);
 
 // A stand-in for the o3p_mcp data API. `reply(request)` returns
 // { status, body, contentType } or a function that writes the raw response.
@@ -107,6 +112,14 @@ const ARGS = {
     ids: [5, 6],
     values: { phone: "+39 02 000", category_id: { add: [3], remove: [1] } },
   },
+  odoo_find_actions: { query: "quotation", model: "sale.order", limit: 5, offset: 0 },
+  odoo_describe_action: { action: "discount-quotation" },
+  odoo_run_action: {
+    action: "discount-quotation",
+    ids: [7],
+    values: { discount_type: "so_discount", discount_percentage: 0.05 },
+    company: 1,
+  },
   odoo_sql: {
     query:
       "SELECT p.name, count(o.id) FROM res_partner p JOIN sale_order o ON o.partner_id = p.id GROUP BY p.name",
@@ -136,6 +149,50 @@ const RESULTS = {
       { id: 6, display_name: "B" },
     ],
   },
+  actions: {
+    actions: [
+      {
+        name: "discount-quotation",
+        title: "Discount a quotation",
+        description: "Applies a discount to a quotation.",
+        kind: "wizard",
+        model: "sale.order",
+        records: [1, 1],
+        inputs: ["discount_percentage", "discount_type"],
+      },
+    ],
+    total: 1,
+    truncated: false,
+  },
+  describe_action: {
+    name: "discount-quotation",
+    title: "Discount a quotation",
+    description: "Applies a discount to a quotation.",
+    kind: "wizard",
+    model: "sale.order",
+    records: [1, 1],
+    inputs: [
+      { name: "discount_percentage", string: "Percentage", type: "float", required: false },
+      {
+        name: "discount_type",
+        string: "Discount Type",
+        type: "selection",
+        required: false,
+        selection: [["so_discount", "Global Discount"]],
+        default: "sol_discount",
+      },
+    ],
+    summary:
+      "Opens the wizard Discount Wizard (sale.order.discount) for one record of Sales Order.",
+    steps: ["action_apply_discount"],
+    wizard: "sale.order.discount",
+  },
+  run_action: {
+    done: true,
+    records: [{ id: 7, display_name: "S00007" }],
+    form: { discount_type: "so_discount", discount_percentage: 0.05 },
+    returned: { type: "ir.actions.act_window", model: "sale.order.discount", wizard: true },
+  },
   sql: {
     columns: [
       { name: "name", type: "character varying" },
@@ -159,7 +216,7 @@ function rejectsWith(promise, code) {
   });
 }
 
-test("the pack declares API v1, id odoo, seven read-only tools and two that write", () => {
+test("the pack declares API v1, id odoo, nine read-only tools and three that write", () => {
   assert.equal(exported, okfToolPack);
   assert.ok(okfProducer, "the producer is still exported next to the pack");
   assert.equal(okfToolPack.apiVersion, "1");
@@ -175,10 +232,11 @@ test("the pack declares API v1, id odoo, seven read-only tools and two that writ
     assert.equal(tool.inputSchema.type, "object");
     assert.equal(tool.inputSchema.additionalProperties, false);
     assert.equal(tool.outputSchema.type, "object");
-    // A writing tool is announced as such; an update replaces existing values.
+    // A writing tool is announced as such; an update replaces existing
+    // values and an action does whatever its button does.
     assert.equal(tool.annotations.readOnlyHint, !WRITES[name]);
     assert.equal(tool.annotations.idempotentHint, !WRITES[name]);
-    assert.equal(tool.annotations.destructiveHint, WRITES[name] === "update");
+    assert.equal(tool.annotations.destructiveHint, DESTRUCTIVE.has(name));
     assert.ok(tool.description.length > 100 && tool.description.length < 2500, name);
   }
   const { odoo_search: search, odoo_group: group, odoo_read: read } = okfToolPack.tools;
@@ -236,9 +294,20 @@ test("each tool posts its operation with Basic client credentials and the subjec
   }
   assert.deepEqual(
     server.requests.map((request) => [request.method, request.url]),
-    ["context", "models", "describe", "search", "read", "group", "create", "update", "sql"].map(
-      (op) => ["POST", `/o3p_mcp/api/v1/${op}`],
-    ),
+    [
+      "context",
+      "models",
+      "describe",
+      "search",
+      "read",
+      "group",
+      "create",
+      "update",
+      "actions",
+      "describe_action",
+      "run_action",
+      "sql",
+    ].map((op) => ["POST", `/o3p_mcp/api/v1/${op}`]),
   );
   for (const request of server.requests) {
     assert.match(request.headers["content-type"], /^application\/json/);
@@ -261,7 +330,13 @@ test("each tool posts its operation with Basic client credentials and the subjec
   assert.deepEqual(params[5], ARGS.odoo_group);
   assert.deepEqual(params[6], ARGS.odoo_create);
   assert.deepEqual(params[7], ARGS.odoo_update);
-  assert.deepEqual(params[8], ARGS.odoo_sql);
+  assert.deepEqual(params[8], ARGS.odoo_find_actions);
+  assert.deepEqual(params[9], ARGS.odoo_describe_action);
+  assert.deepEqual(params[10], ARGS.odoo_run_action);
+  assert.deepEqual(params[11], ARGS.odoo_sql);
+  assert.deepEqual(results.odoo_find_actions, RESULTS.actions);
+  assert.deepEqual(results.odoo_describe_action, RESULTS.describe_action);
+  assert.deepEqual(results.odoo_run_action, RESULTS.run_action);
   assert.deepEqual(results.odoo_context, RESULTS.context);
   assert.deepEqual(results.odoo_create, RESULTS.create);
   assert.deepEqual(results.odoo_update, RESULTS.update);
@@ -914,4 +989,72 @@ test("create and update pass on Odoo's own refusal and refuse malformed argument
     );
   }
   assert.equal(server.requests.length, before);
+});
+
+test("run_action passes on Odoo's own refusal, sends no ids for none and refuses malformed arguments", async (t) => {
+  const explanation = "Per modificare un turno pubblicato usa Rettifica e indica il motivo.";
+  let status = 200;
+  const server = await fakeDataApi(t, ({ url }) =>
+    status === 200
+      ? { body: { result: RESULTS[url.split("/").pop()] } }
+      : {
+          status,
+          body: { error: { code: "query_error", message: "x", details: { message: explanation } } },
+        },
+  );
+  const { odoo_run_action: run, odoo_describe_action: describe } = okfToolPack.tools;
+  // An action that takes no record: ids may be left out and is sent empty.
+  await run.handler(
+    { action: "generate-shifts", values: { date_from: "2026-12-01" } },
+    context(server.url),
+  );
+  assert.deepEqual(server.requests.at(-1).body.params, {
+    action: "generate-shifts",
+    ids: [],
+    values: { date_from: "2026-12-01" },
+  });
+  status = 422;
+  await assert.rejects(run.handler(ARGS.odoo_run_action, context(server.url)), (error) => {
+    assert.equal(error.code, "query_error");
+    assert.equal(error.details.message, explanation);
+    return true;
+  });
+  // Describing reads: its query_error carries no text from Odoo.
+  await assert.rejects(
+    describe.handler(ARGS.odoo_describe_action, context(server.url)),
+    (error) => {
+      assert.equal(error.code, "query_error");
+      assert.equal(error.details?.message, undefined);
+      return true;
+    },
+  );
+  const before = server.requests.length;
+  for (const [tool, args] of [
+    [run, {}],
+    [run, { action: "Not A Slug" }],
+    [run, { action: "x".repeat(65) }],
+    [run, { action: "move", ids: [0] }],
+    [run, { action: "move", ids: Array.from({ length: 101 }, (_, i) => i + 1) }],
+    [run, { action: "move", ids: [1], values: { "Bad Name": 1 } }],
+    [run, { action: "move", ids: [1], values: [] }],
+    [run, { action: "move", ids: [1], company: 0 }],
+    [run, { action: "move", ids: [1], method: "unlink" }],
+    [describe, { action: "move", ids: [1] }],
+    [okfToolPack.tools.odoo_find_actions, { limit: 51 }],
+    [okfToolPack.tools.odoo_find_actions, { model: "Sale Order" }],
+  ]) {
+    await rejectsWith(tool.handler(args, context(server.url)), "invalid_arguments");
+  }
+  assert.equal(server.requests.length, before);
+  assert.match(run.description, /tell the user exactly which action/);
+  assert.match(run.description, /has not finished/);
+  assert.match(okfToolPack.tools.odoo_update.description, /odoo_find_actions/);
+  assert.match(okfToolPack.tools.odoo_create.description, /odoo_find_actions/);
+  for (const name of ["odoo_find_actions", "odoo_describe_action", "odoo_run_action"]) {
+    assert.doesNotMatch(
+      okfToolPack.tools[name].description,
+      /readable by every user who reads the bundle/,
+      name,
+    );
+  }
 });

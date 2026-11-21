@@ -93,13 +93,14 @@ function objectSchema(properties, required) {
   return { type: "object", properties, required, additionalProperties: false };
 }
 
-// `writes` is "create" or "update" for a tool that changes Odoo records: it
-// is not read-only, not repeatable, and an update replaces existing values.
+// `writes` is "create", "update" or "run" for a tool that changes Odoo
+// records: it is not read-only and not repeatable. An update replaces
+// existing values, and an action does whatever its button does.
 function annotations(title, writes) {
   return {
     title,
     readOnlyHint: !writes,
-    destructiveHint: writes === "update",
+    destructiveHint: writes === "update" || writes === "run",
     idempotentHint: !writes,
     openWorldHint: true,
   };
@@ -148,9 +149,27 @@ const WRITTEN = {
   required: ["records"],
 };
 const WRITE_RULES =
-  "Odoo applies the signed-in user's own rights, and accepts writes only on the models the administrator opened: odoo_describe_model tells both (access, and writable on each field). Read-only, computed and related fields, one2many lines, files and images cannot be set; a status changes through Odoo's own buttons, not by setting the field.";
+  "Odoo applies the signed-in user's own rights, and accepts writes only on the models the administrator opened: odoo_describe_model tells both (access, and writable on each field). Read-only, computed and related fields, one2many lines, files and images cannot be set; a status changes through Odoo's own buttons, not by setting the field: when Odoo refuses a change and names a button, look for it with odoo_find_actions.";
 const WRITE_ERRORS =
   "Nothing is written when any part is refused. access_denied, invalid_params and unknown_record name the field and a hint; when Odoo itself refuses the change (query_error), details.message is Odoo's explanation for the user.";
+
+// An exposed action: a button, a server action or a wizard of Odoo that the
+// administrator lets MCP users run.
+const ACTION = {
+  type: "string",
+  pattern: "^[a-z][a-z0-9_-]{0,63}$",
+  description: "Name of an exposed action, as odoo_find_actions lists it.",
+};
+const ACTION_ENTRY = {
+  name: { type: "string" },
+  title: { type: "string" },
+  description: { type: "string" },
+  kind: { type: "string" },
+  model: { type: ["string", "null"] },
+  records: { type: "array", items: { type: "integer" } },
+};
+const ACTION_ERRORS =
+  "Odoo applies the signed-in user's own rights. access_denied and invalid_params name the parameter (field), the reason and a hint; an action that does not exist and one exposed to other users are refused alike (unknown_action).";
 
 const TOOLS = [
   {
@@ -490,6 +509,143 @@ const TOOLS = [
     ),
     outputSchema: WRITTEN,
     params: (args) => ({ ...args }),
+    result: objectResult,
+  },
+  {
+    name: "odoo_find_actions",
+    op: "actions",
+    title: "Find Odoo actions",
+    description: [
+      "List the actions the signed-in user may run in Odoo: buttons, server actions and wizards the administrator exposed one by one, such as confirming a document or moving a planned service with a reason.",
+      "Each has a name, a title, a description of what it does and when to use it, its kind (method: a record button; server: a server action; wizard), the model of the records it runs on, how many records one call takes (records: [fewest, most]) and the names of the values it asks for (inputs).",
+      "Use it when the user asks for something that is a button in Odoo rather than a field change, and when odoo_create or odoo_update is refused and Odoo's message names a button. An action that is not listed cannot be run through MCP: say that it has to be done in Odoo itself, or exposed by the administrator.",
+      "total is the number of matching actions and truncated is true when more exist than limit; page with offset.",
+      RIGHTS,
+    ].join(" "),
+    inputSchema: objectSchema(
+      {
+        query: {
+          type: "string",
+          maxLength: 200,
+          description:
+            "Word to look for in the name, title, description or model; omit to list the actions.",
+        },
+        model: { ...MODEL, description: "Only the actions on records of this model." },
+        limit: { type: "integer", minimum: 1, maximum: 50, description: "At most 50; default 50." },
+        offset: {
+          type: "integer",
+          minimum: 0,
+          maximum: 10000,
+          description: "Actions to skip, for paging.",
+        },
+      },
+      [],
+    ),
+    outputSchema: {
+      type: "object",
+      properties: {
+        actions: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: { ...ACTION_ENTRY, inputs: { type: "array", items: { type: "string" } } },
+            required: ["name"],
+          },
+        },
+        total: { type: "integer" },
+        truncated: { type: "boolean" },
+      },
+      required: ["actions"],
+    },
+    params: (args) => ({ ...args }),
+    result: (value) => (Array.isArray(value?.actions) ? value : null),
+  },
+  {
+    name: "odoo_describe_action",
+    op: "describe_action",
+    title: "Describe an Odoo action",
+    description: [
+      "Describe one exposed Odoo action before running it: what it runs, in words (summary); the model of its records and how many one call takes (records: [fewest, most]); the buttons it presses, in order (steps); and, for a wizard, every value it asks for (inputs) with its technical name, label, type, related model, selection keys, whether it is required and the default a new wizard starts with.",
+      "Call it before odoo_run_action, so that you pass the right records and the right values.",
+      ACTION_ERRORS,
+    ].join(" "),
+    inputSchema: objectSchema({ action: ACTION }, ["action"]),
+    outputSchema: {
+      type: "object",
+      properties: {
+        ...ACTION_ENTRY,
+        inputs: {
+          type: "array",
+          items: {
+            type: "object",
+            properties: {
+              name: { type: "string" },
+              string: { type: "string" },
+              type: { type: "string" },
+              relation: { type: "string" },
+              required: { type: "boolean" },
+              selection: { type: "array" },
+              help: { type: "string" },
+            },
+            required: ["name", "type"],
+          },
+        },
+        summary: { type: "string" },
+        steps: { type: "array", items: { type: "string" } },
+        wizard: { type: "string" },
+      },
+      required: ["name"],
+    },
+    params: (args) => ({ ...args }),
+    result: objectResult,
+  },
+  {
+    name: "odoo_run_action",
+    op: "run_action",
+    scope: "odoo.write",
+    writes: "run",
+    title: "Run an Odoo action",
+    description: [
+      "Run one exposed Odoo action on the given records as the signed-in user: Odoo presses the button, runs the server action, or fills the wizard with the values and presses its buttons, all in one call. It changes data and may not be reversible.",
+      "Before calling it: describe the action (odoo_describe_action), read the records (odoo_search or odoo_read), and tell the user exactly which action you are about to run, on which records and with which values.",
+      "ids holds as many records as the action takes. values holds a wizard's inputs by field name, in the formats of odoo_create; a button and a server action take none.",
+      "The answer lists the records with their names after the run. form is what the wizard shows after its last button, for example a summary of the change: report it to the user. returned is what Odoo would open next; when it names a wizard, the button has not finished and Odoo is asking for more: say so instead of reporting success.",
+      "Nothing is changed when any part is refused.",
+      ACTION_ERRORS,
+      "A record that does not exist and one the user may not read are refused alike (unknown_record). When Odoo itself refuses the action (query_error), details.message is Odoo's explanation for the user: report it, and run the action again only if the message says what to change.",
+    ].join(" "),
+    inputSchema: objectSchema(
+      {
+        action: ACTION,
+        ids: {
+          type: "array",
+          items: { type: "integer", minimum: 1 },
+          maxItems: 100,
+          description:
+            "Ids of the records to run the action on; none for an action that takes no record.",
+        },
+        values: {
+          type: "object",
+          maxProperties: 200,
+          propertyNames: { pattern: "^[a-z_][a-z0-9_]*$", maxLength: 128 },
+          description:
+            "A wizard's inputs by field name, as odoo_describe_action lists them, in the formats of odoo_create's values.",
+        },
+        company: COMPANY,
+      },
+      ["action"],
+    ),
+    outputSchema: {
+      type: "object",
+      properties: {
+        done: { type: "boolean" },
+        records: WRITTEN.properties.records,
+        form: { type: "object" },
+        returned: { type: "object" },
+      },
+      required: ["done", "records"],
+    },
+    params: (args) => ({ ...args, ids: args.ids ?? [] }),
     result: objectResult,
   },
   {

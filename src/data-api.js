@@ -19,10 +19,13 @@ const OPS = new Set([
   "sql",
   "create",
   "update",
+  "actions",
+  "describe_action",
+  "run_action",
 ]);
 // The operations that change records: Odoo's own refusal of a write comes
 // with the message Odoo shows that user.
-const WRITE_OPS = new Set(["create", "update"]);
+const WRITE_OPS = new Set(["create", "update", "run_action"]);
 // PostgreSQL's own message about an SQL query, as the data API caps it.
 const MAX_SQL_MESSAGE = 500;
 // The host passes on detail strings of at most 200 characters.
@@ -117,8 +120,8 @@ function oneLine(value, max) {
 // hint, all schema names and fixed texts. sql's query_error adds
 // PostgreSQL's answer (the sandbox holds only rows the user may read, and an
 // agent needs it to fix its query): a valid SQLSTATE, a 1-based position and
-// a message of at most 500 characters. create's and update's query_error
-// adds Odoo's own message for the user, capped the same way. A string
+// a message of at most 500 characters. The query_error of create, update
+// and run_action adds Odoo's own message for the user, capped the same way. A string
 // holding the token or a credential is dropped. Returns null when nothing
 // remains.
 function errorDetails(value, op, code, hidden) {

@@ -221,7 +221,7 @@ reuse.
 ## Odoo data tools (experimental)
 
 `okfToolPack` gives an MCP host such as `okf-mcp` (tool-pack API v1, which is
-experimental and may still change) seven read-only tools for live records and two that change them:
+experimental and may still change) nine read-only tools for live records and three that change them:
 
 | Tool | Data API operation | Purpose |
 | --- | --- | --- |
@@ -233,9 +233,12 @@ experimental and may still change) seven read-only tools for live records and tw
 | `odoo_group` | `group` | Grouped totals such as `amount_total:sum` and `__count` (at most 500 groups); without `groupby`, one group of totals over all matching records (`o3p_mcp` 1.42 or newer) |
 | `odoo_create` | `create` | Create 1 to 20 records of a model as the signed-in user, on the models the Odoo administrator opened for writing (`o3p_mcp` 1.43 or newer) |
 | `odoo_update` | `update` | Set fields of existing records, given by their ids (at most 100), all or none (`o3p_mcp` 1.43 or newer) |
+| `odoo_find_actions` | `actions` | The actions the signed-in user may run: buttons, server actions and wizards the Odoo administrator exposed one by one, with what each does, the model and number of records it takes and the names of the values it asks for (`o3p_mcp` 1.48 or newer) |
+| `odoo_describe_action` | `describe_action` | One exposed action: what it runs in words, the buttons it presses and, for a wizard, each value it asks for with its label, type, selection keys and default (`o3p_mcp` 1.48 or newer) |
+| `odoo_run_action` | `run_action` | Run one exposed action on records given by their ids, with a wizard's values, as the signed-in user; the answer has the records, what the wizard shows after its last button and what Odoo would open next (`o3p_mcp` 1.48 or newer) |
 | `odoo_sql` | `sql` | One read-only `SELECT`, `VALUES` or `TABLE` statement on the database tables, over only the rows and fields the user may read (at most 1000 rows; default 100) |
 
-Each tool requires the `odoo.read` scope, `odoo_sql` the `odoo.sql` scope, `odoo_create` and `odoo_update` the `odoo.write` scope; the two are announced as not read-only (`readOnlyHint: false`), `odoo_update` also as destructive. When Odoo itself refuses a change, their `query_error` carries Odoo's message for the user in `details.message` (at most 500 characters). The tools do not read Odoo
+Each tool requires the `odoo.read` scope, `odoo_sql` the `odoo.sql` scope, `odoo_create`, `odoo_update` and `odoo_run_action` the `odoo.write` scope; the three are announced as not read-only (`readOnlyHint: false`), `odoo_update` and `odoo_run_action` also as destructive. When Odoo itself refuses a change or an action, their `query_error` carries Odoo's message for the user in `details.message` (at most 500 characters). A client names an exposed action, never a method: what an action runs is fixed in Odoo by the administrator. The tools do not read Odoo
 directly: every call is a `POST {url}/o3p_mcp/api/v1/{op}` to the data API of
 the `o3p_mcp` Odoo addon, authenticated with the MCP server's
 resource-server client credentials (HTTP Basic) and carrying the signed-in
