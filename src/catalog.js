@@ -16,8 +16,14 @@ const SECTIONS = Object.freeze([
   "crons",
   "reports",
   "serverActions",
+  "mcpActions",
 ]);
-const DEFAULT_SECTIONS = Object.freeze(SECTIONS.filter((section) => section !== "serverActions"));
+// Read only when asked for: server actions, and the actions the o3p_mcp addon
+// exposes to MCP users, a model that exists only where that addon is installed.
+const OPT_IN_SECTIONS = Object.freeze(["serverActions", "mcpActions"]);
+const DEFAULT_SECTIONS = Object.freeze(
+  SECTIONS.filter((section) => !OPT_IN_SECTIONS.includes(section)),
+);
 // These are rendered on model concepts, so they need the models section.
 const MODEL_SECTIONS = Object.freeze(["access", "crons", "reports", "serverActions"]);
 
@@ -85,6 +91,20 @@ const BASE_FIELDS = Object.freeze({
   "ir.cron": ["cron_name", "model_id", "interval_number", "interval_type", "active", "priority"],
   "ir.actions.report": ["name", "model", "report_type", "report_name", "group_ids"],
   "ir.actions.server": ["name", "model_id", "state", "binding_model_id", "group_ids"],
+  "o3p.mcp.action": [
+    "name",
+    "title",
+    "description",
+    "kind",
+    "model_name",
+    "wizard_model_name",
+    "min_records",
+    "max_records",
+    "group_ids",
+    "summary",
+    "problem",
+    "spec",
+  ],
 });
 
 function withoutModels(fields, ...models) {
@@ -192,6 +212,24 @@ function byKey(...keys) {
     }
     return compare(JSON.stringify(left), JSON.stringify(right));
   };
+}
+
+// The inputs of an exposed action as the o3p_mcp addon describes them.
+function actionInputs(value) {
+  return (Array.isArray(value) ? value : [])
+    .filter((item) => item && typeof item === "object" && text(item.name))
+    .map((item) => ({
+      name: text(item.name),
+      label: text(item.string) || text(item.name),
+      type: text(item.type),
+      relation: text(item.relation),
+      required: item.required === true,
+      selection: (Array.isArray(item.selection) ? item.selection : [])
+        .filter((pair) => Array.isArray(pair) && pair.length === 2)
+        .map(([key, label]) => ({ key: String(key), label: String(label) })),
+      help: text(item.help),
+    }))
+    .sort(byKey((input) => input.name));
 }
 
 function patternMatcher(patterns) {
@@ -684,6 +722,41 @@ async function readCatalog(client, options = {}) {
           ),
         );
       }
+    });
+  }
+
+  if (has("mcpActions")) {
+    // The key exists only when the section is read, so that a catalog
+    // without it is what it was before the section existed.
+    catalog.mcpActions = [];
+    await inSection("mcpActions", async () => {
+      for (const row of await read("o3p.mcp.action", [])) {
+        const spec =
+          row.spec && typeof row.spec === "object" && !Array.isArray(row.spec) ? row.spec : {};
+        const fixed =
+          spec.fixed && typeof spec.fixed === "object" && !Array.isArray(spec.fixed)
+            ? spec.fixed
+            : {};
+        catalog.mcpActions.push({
+          name: text(row.name) || `action-${row.id}`,
+          title: text(row.title) || text(row.name) || `Action ${row.id}`,
+          description: text(row.description),
+          kind: text(row.kind),
+          model: text(row.model_name),
+          wizard: text(row.wizard_model_name),
+          minRecords: Number(row.min_records) || 0,
+          maxRecords: Number(row.max_records) || 0,
+          groups: await groupRefs(row.group_ids),
+          summary: text(row.summary),
+          problem: text(row.problem),
+          inputs: actionInputs(spec.inputs),
+          steps: (Array.isArray(spec.steps) ? spec.steps : []).map(text).filter(Boolean),
+          fixed: Object.keys(fixed)
+            .sort()
+            .map((name) => ({ name, value: JSON.stringify(fixed[name]) })),
+        });
+      }
+      catalog.mcpActions.sort(byKey((action) => action.name));
     });
   }
 

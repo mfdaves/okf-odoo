@@ -61,7 +61,9 @@ const files = {
   model: (name) => `models/${safeSegment(name)}.md`,
   group: (key) => `groups/${safeSegment(key)}.md`,
   app: (key) => `apps/${safeSegment(key)}.md`,
+  action: (name) => `actions/${safeSegment(name)}.md`,
 };
+const ACTION_KINDS = { method: "record button", server: "server action", wizard: "wizard" };
 
 function operations(value) {
   const words = [...String(value || "")].map((letter) => OPERATIONS[letter]).filter(Boolean);
@@ -378,6 +380,27 @@ class Renderer {
         ),
       );
     }
+    if (this.sections.has("mcpActions")) {
+      const exposed = (this.catalog.mcpActions || []).filter(
+        (action) => action.model === model.model || action.wizard === model.model,
+      );
+      body.push(
+        "",
+        "## Exposed actions",
+        "",
+        list(
+          exposed.map(
+            (action) =>
+              `- [${linkText(action.title)}](${this.href(file, files.action(action.name))}) (${codeSpan(action.name)})${
+                action.wizard === model.model && action.model !== model.model
+                  ? ": runs this wizard"
+                  : ""
+              }`,
+          ),
+          "No action of this model is exposed to MCP users.",
+        ),
+      );
+    }
     const readFrom = ["ir.model", "ir.model.fields"];
     if (this.sections.has("access")) {
       readFrom.push(
@@ -389,6 +412,7 @@ class Renderer {
     if (this.sections.has("crons")) readFrom.push("ir.cron");
     if (this.sections.has("reports")) readFrom.push("ir.actions.report");
     if (this.sections.has("serverActions")) readFrom.push("ir.actions.server");
+    if (this.sections.has("mcpActions")) readFrom.push("o3p.mcp.action");
     const relations = [];
     if (model.definedIn && this.modules.has(model.definedIn)) {
       relations.push({ type: "defined_in", target: this.uri(files.module(model.definedIn)) });
@@ -538,6 +562,95 @@ class Renderer {
     );
   }
 
+  // An action the o3p_mcp addon exposes to MCP users: a record button, a
+  // server action or a wizard, run by its name through the data API.
+  actionConcept(action) {
+    const file = files.action(action.name);
+    const count =
+      action.minRecords === action.maxRecords
+        ? `${action.maxRecords} record${action.maxRecords === 1 ? "" : "s"}`
+        : `${action.minRecords} to ${action.maxRecords} records`;
+    const facts = [
+      `- Kind: ${ACTION_KINDS[action.kind] || cell(action.kind)}`,
+      action.model && action.maxRecords
+        ? `- Runs on: ${count} of ${this.modelRef(file, action.model)} per call`
+        : "- Runs on: no record",
+      action.wizard ? `- Wizard: ${this.modelRef(file, action.wizard)}` : null,
+      `- Only for: ${this.groupRefs(file, action.groups, "every user Odoo lets change these records")}`,
+      action.problem ? `- Cannot run as it is defined: ${inline(action.problem)}` : null,
+    ].filter((line) => line !== null);
+    const body = [
+      `# ${inline(action.title)} (${codeSpan(action.name)})`,
+      "",
+      clean(action.description)
+        ? lineStart(action.description)
+        : `Action ${inline(action.name)} exposed to MCP users.`,
+      "",
+      ...facts,
+      "",
+      "## What it runs",
+      "",
+      clean(action.summary) ? lineStart(action.summary) : "Not available.",
+      "",
+      "## What it asks for",
+      "",
+      table(
+        ["Name", "Label", "Type", "Required", "Values"],
+        action.inputs.map((input) => [
+          codeSpan(input.name, { table: true }),
+          cell(input.label),
+          codeSpan(input.type, { table: true }),
+          input.required ? "yes" : "no",
+          input.selection.length
+            ? input.selection
+                .map((item) => `${codeSpan(item.key, { table: true })} (${cell(item.label)})`)
+                .join(", ")
+            : input.relation
+              ? `a record of ${this.modelRef(file, input.relation, true)}`
+              : "—",
+        ]),
+        "Nothing: the action takes no values.",
+      ),
+    ];
+    if (action.fixed.length) {
+      body.push(
+        "",
+        "Always set by the action:",
+        "",
+        ...action.fixed.map((item) => `- ${codeSpan(item.name)} = ${codeSpan(item.value)}`),
+      );
+    }
+    if (action.steps.length) {
+      body.push(
+        "",
+        `Buttons pressed, in order: ${action.steps.map((step) => codeSpan(step)).join(", ")}.`,
+      );
+    }
+    body.push(
+      "",
+      "## Running it through MCP",
+      "",
+      `Call \`odoo_describe_action\` with the action ${codeSpan(action.name)} for the inputs as the signed-in user gets them, then \`odoo_run_action\` with the ids of the records and the values. Odoo runs it with the signed-in user's own rights and refuses it in its own words when its rules do not allow it. \`odoo_find_actions\` lists the actions a user may run.`,
+    );
+    const relations = [action.model, action.wizard]
+      .filter((name) => name && this.models.has(name))
+      .map((name) => ({ type: "references", target: this.uri(files.model(name)) }));
+    return this.concept(
+      file,
+      {
+        type: "Odoo Action",
+        title: action.title,
+        description:
+          action.description || `Action ${action.name} exposed to MCP users by the o3p_mcp addon.`,
+        resource: this.resource("o3p.mcp.action", action.name),
+        sources: this.sources("o3p.mcp.action"),
+        tags: ["odoo", "action", clean(action.kind), clean(action.model)].filter(Boolean),
+        relations,
+      },
+      body.join("\n"),
+    );
+  }
+
   index() {
     const catalog = this.catalog;
     const block = (title, items) => ["", `## ${title}`, "", list(items, "None.")];
@@ -582,6 +695,17 @@ class Renderer {
         ),
       );
     }
+    if (this.sections.has("mcpActions")) {
+      body.push(
+        ...block(
+          "Exposed actions",
+          (catalog.mcpActions || []).map(
+            (action) =>
+              `- [${linkText(action.title)}](${files.action(action.name)}) — ${codeSpan(action.name)}`,
+          ),
+        ),
+      );
+    }
     return ["index.md", conceptMarkdown({ okf_version: "0.2" }, body.join("\n"))];
   }
 }
@@ -616,6 +740,7 @@ function buildBundle(catalog, options = {}) {
     ...catalog.models.map((model) => renderer.modelConcept(model)),
     ...(catalog.groups || []).map((group) => renderer.groupConcept(group)),
     ...(catalog.apps || []).map((app) => renderer.appConcept(app)),
+    ...(catalog.mcpActions || []).map((action) => renderer.actionConcept(action)),
   ];
   const result = new Map();
   const folded = new Set();

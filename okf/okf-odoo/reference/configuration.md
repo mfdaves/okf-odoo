@@ -27,10 +27,11 @@ The producer configuration lives under `producers[].config` in
   hands a producer only the variables its configuration names.
 - `source` (default `odoo`): alias used in `odoo://` resource locators.
 - `lang` (default `en_US`): language of labels and menu names.
-- `sections` (default every section but `serverActions`): `modules`,
-  `models`, `access`, `groups`, `menus`, `crons`, `reports`,
-  `serverActions`. `access`, `crons`, `reports` and `serverActions` require
-  `models`.
+- `sections` (default every section but `serverActions` and `mcpActions`):
+  `modules`, `models`, `access`, `groups`, `menus`, `crons`, `reports`,
+  `serverActions`, `mcpActions`. `access`, `crons`, `reports` and
+  `serverActions` require `models`. `mcpActions` reads the actions the
+  `o3p_mcp` addon exposes to MCP users and needs that addon on the server.
 - `modules.include` and `modules.exclude`: module names, with `*` matching
   any characters, selecting the modules documented in full. A model is
   documented when a selected module defines or extends it.

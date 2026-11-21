@@ -235,3 +235,138 @@ test("a server whose base module is not Odoo 18, 19 or 20 is refused", async () 
     });
   }
 });
+
+test("mcpActions reads the actions the o3p_mcp addon exposes, when asked for", async () => {
+  const replay = ReplayClient.forVersion("20");
+  const rows = [
+    {
+      id: 2,
+      name: "move-order",
+      title: "Move an order",
+      description: "Moves an order with a reason.",
+      kind: "wizard",
+      model_name: "sale.order",
+      wizard_model_name: "x.order.move",
+      min_records: 1,
+      max_records: 1,
+      group_ids: [],
+      summary: "Opens the wizard Move.",
+      problem: false,
+      spec: {
+        inputs: [
+          { name: "reason", string: "Reason", type: "text", required: true },
+          {
+            name: "kind",
+            string: "Kind",
+            type: "selection",
+            required: false,
+            selection: [["soon", "Soon"], ["broken"]],
+            help: "When.",
+          },
+          { string: "no name" },
+        ],
+        steps: ["action_review", "action_apply", 7],
+        fixed: { operation: "move", count: 2 },
+      },
+    },
+    {
+      id: 1,
+      name: "confirm-order",
+      title: false,
+      description: false,
+      kind: "method",
+      model_name: "sale.order",
+      wizard_model_name: false,
+      min_records: 1,
+      max_records: 5,
+      group_ids: [999999],
+      summary: false,
+      problem: "sale.order has no method gone.",
+      spec: false,
+    },
+  ];
+  const client = {
+    calls: [],
+    async searchRead(model, params) {
+      this.calls.push({ model, params });
+      return model === "o3p.mcp.action" ? structuredClone(rows) : replay.searchRead(model, params);
+    },
+  };
+  const catalog = await readCatalog(client, { sections: ["groups", "mcpActions"] });
+  const call = client.calls.find((entry) => entry.model === "o3p.mcp.action");
+  assert.deepEqual(call.params.fields, fieldsFor("20")["o3p.mcp.action"]);
+  assert.deepEqual(call.params.domain, []);
+  assert.deepEqual(catalog.sections, ["groups", "mcpActions"]);
+  assert.deepEqual(catalog.mcpActions, [
+    {
+      name: "confirm-order",
+      title: "confirm-order",
+      description: null,
+      kind: "method",
+      model: "sale.order",
+      wizard: null,
+      minRecords: 1,
+      maxRecords: 5,
+      groups: [],
+      summary: null,
+      problem: "sale.order has no method gone.",
+      inputs: [],
+      steps: [],
+      fixed: [],
+    },
+    {
+      name: "move-order",
+      title: "Move an order",
+      description: "Moves an order with a reason.",
+      kind: "wizard",
+      model: "sale.order",
+      wizard: "x.order.move",
+      minRecords: 1,
+      maxRecords: 1,
+      groups: [],
+      summary: "Opens the wizard Move.",
+      problem: null,
+      inputs: [
+        {
+          name: "kind",
+          label: "Kind",
+          type: "selection",
+          relation: null,
+          required: false,
+          selection: [{ key: "soon", label: "Soon" }],
+          help: "When.",
+        },
+        {
+          name: "reason",
+          label: "Reason",
+          type: "text",
+          relation: null,
+          required: true,
+          selection: [],
+          help: null,
+        },
+      ],
+      steps: ["action_review", "action_apply"],
+      fixed: [
+        { name: "count", value: "2" },
+        { name: "operation", value: '"move"' },
+      ],
+    },
+  ]);
+  // It is read only when asked for, and a catalog without it has no such key.
+  assert.equal(DEFAULT_SECTIONS.includes("mcpActions"), false);
+  const without = await readCatalog(ReplayClient.forVersion("20"), { sections: ["groups"] });
+  assert.equal("mcpActions" in without, false);
+  // A server without the addon fails the run and names the section.
+  const missing = {
+    async searchRead(model, params) {
+      if (model === "o3p.mcp.action") throw new OdooError("model_not_found", { model });
+      return replay.searchRead(model, params);
+    },
+  };
+  await assert.rejects(readCatalog(missing, { sections: ["groups", "mcpActions"] }), (error) => {
+    assert.equal(error.name, "CatalogError");
+    assert.equal(error.section, "mcpActions");
+    return true;
+  });
+});

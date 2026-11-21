@@ -519,6 +519,7 @@ const TOOLS = [
       "List the actions the signed-in user may run in Odoo: buttons, server actions and wizards the administrator exposed one by one, such as confirming a document or moving a planned service with a reason.",
       "Each has a name, a title, a description of what it does and when to use it, its kind (method: a record button; server: a server action; wizard), the model of the records it runs on, how many records one call takes (records: [fewest, most]) and the names of the values it asks for (inputs).",
       "Use it when the user asks for something that is a button in Odoo rather than a field change, and when odoo_create or odoo_update is refused and Odoo's message names a button. An action that is not listed cannot be run through MCP: say that it has to be done in Odoo itself, or exposed by the administrator.",
+      "Where the `odoo` knowledge bundle documents them, its actions/<name> concepts describe the same actions for every reader; this tool lists the ones this user may run.",
       "total is the number of matching actions and truncated is true when more exist than limit; page with offset.",
       RIGHTS,
     ].join(" "),

@@ -467,3 +467,173 @@ test("unsafe identifiers receive stable disambiguated paths", () => {
     /identifiers/,
   );
 });
+
+function actionsCatalog() {
+  const catalog = syntheticCatalog();
+  catalog.sections = [...catalog.sections, "mcpActions"];
+  catalog.mcpActions = [
+    {
+      name: "confirm-order",
+      title: "Confirm an order",
+      description: "Confirms an order | the customer accepted.",
+      kind: "method",
+      model: "x.order",
+      wizard: null,
+      minRecords: 1,
+      maxRecords: 5,
+      groups: [{ key: "x_shop.group_manager", name: "Shop / Manager" }],
+      summary: "Presses the button action_confirm on 1 to 5 records of Order (x.order).",
+      problem: null,
+      inputs: [],
+      steps: ["action_confirm"],
+      fixed: [],
+    },
+    {
+      name: "move-order",
+      title: "Move an order <b>later</b>",
+      description: null,
+      kind: "wizard",
+      model: "x.order",
+      wizard: "x.order.move",
+      minRecords: 1,
+      maxRecords: 1,
+      groups: [],
+      summary: "Opens the wizard Move (x.order.move) for one record of Order (x.order).",
+      problem: "x.order.move has no method action_apply.",
+      inputs: [
+        {
+          name: "kind",
+          label: "Kind | of move",
+          type: "selection",
+          relation: null,
+          required: false,
+          selection: [
+            { key: "soon", label: "Soon" },
+            { key: "late", label: "Late | r" },
+          ],
+          help: null,
+        },
+        {
+          name: "order_id",
+          label: "Other order",
+          type: "many2one",
+          relation: "x.order",
+          required: false,
+          selection: [],
+          help: null,
+        },
+        {
+          name: "reason",
+          label: "Reason",
+          type: "text",
+          relation: null,
+          required: true,
+          selection: [],
+          help: null,
+        },
+      ],
+      steps: ["action_review", "action_apply"],
+      fixed: [{ name: "operation", value: '"move"' }],
+    },
+    {
+      name: "generate",
+      title: "Generate",
+      description: "Generates the plan.",
+      kind: "wizard",
+      model: null,
+      wizard: "x.generate",
+      minRecords: 0,
+      maxRecords: 0,
+      groups: [],
+      summary: null,
+      problem: null,
+      inputs: [],
+      steps: ["action_generate"],
+      fixed: [],
+    },
+  ];
+  return catalog;
+}
+
+test("exposed actions become concepts linked from their model and the index", () => {
+  const files = buildBundle(actionsCatalog(), OPTIONS);
+  assert.deepEqual(
+    [...files.keys()].filter((file) => file.startsWith("actions/")),
+    ["actions/confirm-order.md", "actions/move-order.md", "actions/generate.md"],
+  );
+  assert.deepEqual(unresolved(files), []);
+  if (siblingAvailable()) {
+    const outcome = validateWithOkfMcp(files);
+    assert.equal(outcome.status, 0, JSON.stringify(outcome.result?.diagnostics));
+    assert.deepEqual(outcome.result.warnings, []);
+  }
+  const confirm = files.get("actions/confirm-order.md");
+  assert.match(confirm, /^id: okf:\/\/erp\/actions\/confirm-order$/m);
+  assert.match(confirm, /^type: Odoo Action$/m);
+  assert.match(confirm, /^resource: odoo:\/\/erp\/o3p\.mcp\.action\/confirm-order$/m);
+  assert.match(confirm, /- type: references\n\s+target: okf:\/\/erp\/models\/x\.order/);
+  assert.match(confirm, /^# Confirm an order \(`confirm-order`\)$/m);
+  assert.match(confirm, /^Confirms an order \\\| the customer accepted\.$/m);
+  assert.match(confirm, /^- Kind: record button$/m);
+  assert.match(
+    confirm,
+    /^- Runs on: 1 to 5 records of \[x\.order\]\(\.\.\/models\/x\.order\.md\) per call$/m,
+  );
+  assert.match(
+    confirm,
+    /^- Only for: \[Shop \/ Manager\]\(\.\.\/groups\/x_shop\.group_manager\.md\)$/m,
+  );
+  assert.match(confirm, /^Nothing: the action takes no values\.$/m);
+  assert.match(confirm, /^Buttons pressed, in order: `action_confirm`\.$/m);
+  assert.match(confirm, /`odoo_run_action`/);
+  assert.doesNotMatch(confirm, /Cannot run/);
+
+  const move = files.get("actions/move-order.md");
+  // Untrusted text is escaped in the body: no raw HTML, no broken table.
+  assert.match(move, /^# Move an order \\<b>later\\<\/b> \(`move-order`\)$/m);
+  assert.match(move, /^- Runs on: 1 record of \[x\.order\]/m);
+  // The wizard is not a documented model here, so it is named, not linked.
+  assert.match(move, /^- Wizard: `x\.order\.move`$/m);
+  assert.match(move, /^- Only for: every user Odoo lets change these records$/m);
+  assert.match(
+    move,
+    /^- Cannot run as it is defined: x\.order\.move has no method action_apply\.$/m,
+  );
+  assert.match(
+    move,
+    /^\| `kind` \| Kind \\\| of move \| `selection` \| no \| `soon` \(Soon\), `late` \(Late \\\| r\) \|$/m,
+  );
+  assert.match(
+    move,
+    /^\| `order_id` \| Other order \| `many2one` \| no \| a record of \[x\.order\]\(\.\.\/models\/x\.order\.md\) \|$/m,
+  );
+  assert.match(move, /^\| `reason` \| Reason \| `text` \| yes \| — \|$/m);
+  assert.match(move, /^- `operation` = `"move"`$/m);
+  assert.match(move, /^Buttons pressed, in order: `action_review`, `action_apply`\.$/m);
+
+  const generate = files.get("actions/generate.md");
+  assert.match(generate, /^- Runs on: no record$/m);
+  assert.match(generate, /^Not available\.$/m);
+  assert.doesNotMatch(generate, /^relations:/m);
+
+  const order = files.get("models/x.order.md");
+  assert.match(order, /^## Exposed actions$/m);
+  assert.match(
+    order,
+    /^- \[Confirm an order\]\(\.\.\/actions\/confirm-order\.md\) \(`confirm-order`\)$/m,
+  );
+  assert.match(order, /actions\/move-order\.md/);
+  assert.doesNotMatch(order, /actions\/generate\.md/);
+  const index = files.get("index.md");
+  assert.match(index, /^## Exposed actions$/m);
+  assert.match(index, /^- \[Generate\]\(actions\/generate\.md\) — `generate`$/m);
+
+  // Without the section nothing about actions is written.
+  const plain = buildBundle(syntheticCatalog(), OPTIONS);
+  assert.equal(
+    [...plain.keys()].some((file) => file.startsWith("actions/")),
+    false,
+  );
+  assert.doesNotMatch(plain.get("models/x.order.md"), /Exposed actions/);
+  assert.doesNotMatch(plain.get("index.md"), /Exposed actions/);
+});

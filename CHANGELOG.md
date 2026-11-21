@@ -6,6 +6,7 @@ All notable changes to `@mfdaves/okf-odoo`. The format follows Keep a Changelog;
 
 ### Added
 
+- Producer section `mcpActions` (not read by default; needs `o3p_mcp` 1.49 or newer on the server): one concept per action the addon exposes to MCP users, `actions/<name>.md` of type "Odoo Action", with what it does and runs, the records and values it takes and the groups it is limited to, related (`references`) to the concepts of its model and of its wizard, which list it under "Exposed actions". Without the section the generated bundle is unchanged.
 - Tools `odoo_find_actions`, `odoo_describe_action` (scope `odoo.read`) and `odoo_run_action` (scope `odoo.write`), for the data API operations `actions`, `describe_action` and `run_action` of `o3p_mcp` 1.48 or newer: list the buttons, server actions and wizards the Odoo administrator exposed and the signed-in user may run, describe one with the values it asks for, and run it on records given by their ids. `odoo_run_action` is announced as not read-only and destructive; a refusal by Odoo itself carries Odoo's message in `details.message`. A client names an exposed action, never a method.
 
 ### Changed

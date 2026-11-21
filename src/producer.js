@@ -211,6 +211,7 @@ function summarize(catalog, files) {
     reports: count("reports"),
     scheduledJobs: count("crons"),
     serverActions: count("serverActions"),
+    exposedActions: (catalog.mcpActions || []).length,
   };
 }
 

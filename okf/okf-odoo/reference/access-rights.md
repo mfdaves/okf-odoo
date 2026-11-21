@@ -25,7 +25,8 @@ shows groups needs Access Rights at least.
   `ir.model.access` and `ir.rule` on Odoo 18 and 19), `groups` (`res.groups`) and
   `reports` (`ir.actions.report`).
 - Administration: Settings: `menus` (`ir.actions.act_window`), `crons`
-  (`ir.cron`) and `serverActions` (`ir.actions.server`).
+  (`ir.cron`), `serverActions` (`ir.actions.server`) and `mcpActions`
+  (`o3p.mcp.action`, of the `o3p_mcp` addon).
 
 The default sections include `menus` and `crons`, so the full catalog needs a
 Settings administrator's key; a dedicated technical user is recommended. A

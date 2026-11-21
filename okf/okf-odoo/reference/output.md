@@ -22,10 +22,14 @@ relations:
   on documented models.
 - `apps/<xmlid>.md`: a top-level menu, its submenus and the models their
   window actions open.
+- `actions/<name>.md`, with the section `mcpActions`: an action the `o3p_mcp`
+  addon exposes to MCP users, with what it does and runs, the records and
+  values it takes and the groups it is limited to. The concepts of its model
+  and of its wizard list it under "Exposed actions".
 
 Relation types: `defined_in` (model to the module that registered it first),
 `extended_by` (model to the other modules), `references` (model to the models
-its relational fields target), `depends_on` (module to module), `implies`
+its relational fields target, and exposed action to its model and wizard), `depends_on` (module to module), `implies`
 (group to group) and `opens` (application to model). Relations and links are
 emitted only when the target is generated.
 

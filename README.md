@@ -54,6 +54,7 @@ that Odoo version. Measured on Odoo 18, 19 and 20:
 | `menus` | `ir.ui.menu`, `ir.actions.act_window`, `res.groups`, `ir.model.data` | Administration: Settings |
 | `crons` | `ir.cron` | Administration: Settings |
 | `serverActions` | `ir.actions.server` (name, model, type, binding, groups), `res.groups`, `ir.model.data` | Administration: Settings |
+| `mcpActions` | `o3p.mcp.action` of the `o3p_mcp` addon, 1.49 or newer (the actions exposed to MCP users: name, title, description, kind, models, groups, what it runs and asks for), `res.groups`, `ir.model.data` | Administration: Settings |
 
 The default sections include `menus` and `crons`, so the full catalog needs
 the API key of a Settings administrator. Use a dedicated technical user for
@@ -121,7 +122,7 @@ producers:
 | `apiKeyEnv` | required | Name of the environment variable that holds the API key. The host hands a producer only the variables its configuration names. |
 | `source` | `odoo` | Stable, non-secret alias used in `odoo://` resource locators and in the index title. |
 | `lang` | `en_US` | Language of labels, help texts and menu names. |
-| `sections` | all but `serverActions` | Which parts of the catalog to read: `modules`, `models`, `access`, `groups`, `menus`, `crons`, `reports`, `serverActions`. `access`, `crons`, `reports` and `serverActions` are tables on model concepts and require `models`. |
+| `sections` | all but `serverActions` and `mcpActions` | Which parts of the catalog to read: `modules`, `models`, `access`, `groups`, `menus`, `crons`, `reports`, `serverActions`, `mcpActions`. `access`, `crons`, `reports` and `serverActions` are tables on model concepts and require `models`. `mcpActions` needs the `o3p_mcp` addon on the server: without it the run fails, as for any section that cannot be read. |
 | `modules.include` | every installed module | Module names to document in full; `*` matches any characters. |
 | `modules.exclude` | none | Module names never documented, applied after `include`. |
 | `otherModules` | `summary` | What happens to installed modules that `modules.include` does not select: `summary` renders a module concept without their own models, `none` leaves them out. |
@@ -163,6 +164,9 @@ modules/<name>.md        installed version (and the version on disk when it diff
 models/<model>.md        fields, selection values, access, scheduled jobs, reports, server actions
 groups/<xmlid>.md        implied groups, groups implying it, access on documented models
 apps/<xmlid>.md          a top-level menu, its submenus and the models they open
+actions/<name>.md        with mcpActions: an action exposed to MCP users (a record button, a server
+                         action or a wizard): what it does and runs, the records and values it
+                         takes, who may run it; linked from its model's and its wizard's concept
 .okf-producer.json       written by the host: owned paths and digests
 ```
 
