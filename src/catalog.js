@@ -107,6 +107,10 @@ const BASE_FIELDS = Object.freeze({
   ],
 });
 
+// Models of an addon, absent from a standard Odoo: the recorded fixtures and
+// the live checks, which run against a standard install, leave them out.
+const ADDON_MODELS = Object.freeze(["o3p.mcp.action"]);
+
 function withoutModels(fields, ...models) {
   return Object.fromEntries(Object.entries(fields).filter(([model]) => !models.includes(model)));
 }
@@ -765,6 +769,7 @@ async function readCatalog(client, options = {}) {
 }
 
 module.exports = {
+  ADDON_MODELS,
   CatalogError,
   DEFAULT_SECTIONS,
   BASE_FIELDS,

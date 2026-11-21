@@ -8,7 +8,7 @@
 
 const assert = require("node:assert/strict");
 const test = require("node:test");
-const { fieldsFor, readCatalog } = require("../src/catalog");
+const { ADDON_MODELS, fieldsFor, readCatalog } = require("../src/catalog");
 const { liveClient } = require("./support/live");
 const { FIXTURE_OPTIONS, callKey, loadFixture } = require("./support/replay-client");
 
@@ -51,7 +51,10 @@ function rowShapes(rows) {
 test("every allowlisted field exists with the type the fixture recorded", { skip }, async () => {
   const version = process.env.OKF_ODOO_VERSION;
   const fixture = loadFixture(version);
-  const fields = fieldsFor(version);
+  // The live server is a standard Odoo: an addon's model is not on it.
+  const fields = Object.fromEntries(
+    Object.entries(fieldsFor(version)).filter(([model]) => !ADDON_MODELS.includes(model)),
+  );
   const live = client();
   const failures = [];
   assert.deepEqual(Object.keys(fixture.shapes).sort(), Object.keys(fields).sort());

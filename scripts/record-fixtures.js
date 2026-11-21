@@ -8,7 +8,7 @@
 
 const fs = require("node:fs");
 const path = require("node:path");
-const { fieldsFor, readCatalog } = require("../src/catalog");
+const { ADDON_MODELS, fieldsFor, readCatalog } = require("../src/catalog");
 const {
   FIXTURE_OPTIONS,
   VERSIONS,
@@ -20,7 +20,9 @@ const { liveClient, required } = require("../test/support/live");
 async function fieldShapes(client, version) {
   const fields = fieldsFor(version);
   const shapes = {};
+  // The server recorded from is a standard Odoo, without addon models.
   for (const model of Object.keys(fields).sort()) {
+    if (ADDON_MODELS.includes(model)) continue;
     const described = await client.fieldsGet(model, ["type"]);
     shapes[model] = Object.fromEntries(
       fields[model].map((field) => [field, described[field] ? described[field].type : null]),

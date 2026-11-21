@@ -4,9 +4,15 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
-const { CatalogError, DEFAULT_SECTIONS, fieldsFor, readCatalog } = require("../src/catalog");
+const {
+  ADDON_MODELS,
+  CatalogError,
+  DEFAULT_SECTIONS,
+  fieldsFor,
+  readCatalog,
+} = require("../src/catalog");
 const { OdooError } = require("../src/odoo");
-const { FIXTURE_OPTIONS, ReplayClient, VERSIONS } = require("./support/replay-client");
+const { FIXTURE_OPTIONS, ReplayClient, VERSIONS, loadFixture } = require("./support/replay-client");
 
 function snapshotPath(version) {
   return path.join(__dirname, `fixtures/odoo-${version}/catalog.txt`);
@@ -353,6 +359,12 @@ test("mcpActions reads the actions the o3p_mcp addon exposes, when asked for", a
       ],
     },
   ]);
+  // The recorded fixtures describe a standard Odoo: every allowlisted model
+  // but the addon's own.
+  for (const version of VERSIONS) {
+    const standard = Object.keys(fieldsFor(version)).filter((name) => !ADDON_MODELS.includes(name));
+    assert.deepEqual(Object.keys(loadFixture(version).shapes).sort(), standard.sort());
+  }
   // It is read only when asked for, and a catalog without it has no such key.
   assert.equal(DEFAULT_SECTIONS.includes("mcpActions"), false);
   const without = await readCatalog(ReplayClient.forVersion("20"), { sections: ["groups"] });
